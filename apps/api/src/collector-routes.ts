@@ -3,10 +3,11 @@ import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { normalizeDomain, recordTrackingEvent } from "./website-routes";
 import { prisma } from "./lib/prisma";
+import { publishEvent, recordAcceptedEvent, type PipelineEvent } from "./event-pipeline";
 
 const eventTypes = ["page_view", "session_start", "session_end", "form_start", "form_submit", "conversion", "click", "scroll", "custom"] as const;
 
-const eventSchema = z.object({
+export const eventSchema = z.object({
   trackingId: z.string().regex(/^trk_[a-zA-Z0-9_-]{8,100}$/),
   eventId: z.string().trim().min(8).max(128),
   eventType: z.enum(eventTypes),
@@ -32,7 +33,7 @@ const rateLimit = 120;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 const seenEvents = new Map<string, number>();
 
-function maskValue(value: unknown, key = ""): unknown {
+export function maskValue(value: unknown, key = ""): unknown {
   if (sensitiveKey.test(key)) return "[REDACTED]";
   if (Array.isArray(value)) return value.map((item) => maskValue(item));
   if (value && typeof value === "object") {
@@ -41,7 +42,7 @@ function maskValue(value: unknown, key = ""): unknown {
   return value;
 }
 
-function maskUrl(value: string) {
+export function maskUrl(value: string) {
   const url = new URL(value);
   return `${url.origin}${url.pathname}`;
 }
@@ -84,7 +85,7 @@ function validate(input: unknown, response: Response) {
   return result.data;
 }
 
-function publicEventSummary(event: CollectorEvent) {
+export function publicEventSummary(event: CollectorEvent) {
   return {
     eventId: event.eventId,
     eventType: event.eventType,
@@ -138,6 +139,15 @@ collectorRouter.post("/", async (request: Request, response: Response) => {
 
     const maskedEvent = publicEventSummary(input);
     const firstEvent = !website.firstEventAt;
+    const pipelineEvent: PipelineEvent = {
+      ...maskedEvent,
+      trackingId: input.trackingId,
+      websiteId: website.id,
+      properties: maskedEvent.properties as Record<string, unknown>,
+      context: maskedEvent.context as Record<string, unknown>,
+    };
+    recordAcceptedEvent();
+    await publishEvent(pipelineEvent);
     await recordTrackingEvent(website.id);
     response.status(202).json({ accepted: true, duplicate: false, firstEvent, eventId: input.eventId, websiteId: website.id, event: maskedEvent });
   } catch (error) {
