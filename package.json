@@ -7,7 +7,10 @@
     "lint": "npm run lint --workspace @ai-growth/dashboard && npm run lint --workspace @ai-growth/api",
     "typecheck": "npm run typecheck --workspace @ai-growth/dashboard && npm run typecheck --workspace @ai-growth/api"
   },
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "devDependencies": {
     "concurrently": "^9.1.2"
   }

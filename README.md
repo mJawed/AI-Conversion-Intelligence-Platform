@@ -14,15 +14,22 @@ npm run dev
 - API health: http://localhost:4000/health
 - RabbitMQ management: http://localhost:15672
 
+The dashboard uses mock data by default while backend analytics endpoints are
+being built. Set `NEXT_PUBLIC_USE_MOCK_DATA=false` to use the typed API adapter
+against live `/api/v1/analytics/*` endpoints.
+
 Database setup:
 
 ```bash
 npm run db:generate --workspace @ai-growth/api
 npm run db:migrate --workspace @ai-growth/api
+npm run db:seed --workspace @ai-growth/api
 ```
 
 The Prisma schema is in `prisma/schema.prisma`. It currently covers users,
 organizations, organization memberships, and websites.
+
+Database health is available at http://localhost:4000/health/db when the API is running.
 
 Start local infrastructure when needed:
 
