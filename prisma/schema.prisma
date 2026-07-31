@@ -33,6 +33,18 @@ enum TrackingInstallationStatus {
   VERIFIED
 }
 
+enum PrivacyRequestType {
+  EXPORT
+  DELETE
+}
+
+enum PrivacyRequestStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
 model User {
   id                 String               @id @default(uuid()) @db.Uuid
   name               String?
@@ -46,6 +58,8 @@ model User {
   memberships        OrganizationMember[]
   ownedOrganizations Organization[]       @relation("OrganizationOwner")
   refreshTokens       RefreshToken[]
+  auditLogs           AuditLog[]           @relation("AuditLogUser")
+  privacyRequests     PrivacyRequest[]
 
   @@map("users")
 }
@@ -62,6 +76,9 @@ model Organization {
   owner     User                 @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   members   OrganizationMember[]
   websites  Website[]
+  apiKeys   ApiKey[]
+  auditLogs AuditLog[]
+  privacyRequests PrivacyRequest[]
 
   @@index([ownerId])
   @@map("organizations")
@@ -116,4 +133,54 @@ model RefreshToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("refresh_tokens")
+}
+
+model ApiKey {
+  id                String       @id @default(uuid()) @db.Uuid
+  organizationId    String       @map("organization_id") @db.Uuid
+  name              String
+  keyPrefix         String       @map("key_prefix")
+  encryptedSecret   String       @map("encrypted_secret")
+  lastUsedAt        DateTime?    @map("last_used_at")
+  revokedAt         DateTime?    @map("revoked_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([keyPrefix])
+  @@map("api_keys")
+}
+
+model AuditLog {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String?       @map("organization_id") @db.Uuid
+  userId         String?       @map("user_id") @db.Uuid
+  action         String
+  entityType     String        @map("entity_type")
+  entityId       String?       @map("entity_id")
+  metadata       Json?
+  ipAddress      String?       @map("ip_address")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user           User?         @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+model PrivacyRequest {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  userId         String               @map("user_id") @db.Uuid
+  type           PrivacyRequestType
+  status         PrivacyRequestStatus @default(PENDING)
+  createdAt      DateTime             @default(now()) @map("created_at")
+  completedAt    DateTime?            @map("completed_at")
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+  @@map("privacy_requests")
 }

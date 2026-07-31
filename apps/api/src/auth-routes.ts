@@ -1,5 +1,6 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { authenticateAccessToken, getUserById, loginSchema, loginUser, refreshSchema, refreshUser, registerSchema, registerUser, revokeRefreshToken } from "./auth";
+import { authRateLimit } from "./security";
 
 declare global { namespace Express { interface Request { authUserId?: string } } }
 
@@ -17,13 +18,13 @@ export function requireAuth(request: Request, response: Response, next: NextFunc
   try { request.authUserId = authenticateAccessToken(header.slice(7)); next(); } catch { response.status(401).json({ error: "INVALID_ACCESS_TOKEN" }); }
 }
 
-authRouter.post("/register", async (request, response) => {
+authRouter.post("/register", authRateLimit, async (request, response) => {
   const input = validate(registerSchema, request.body, response) as Parameters<typeof registerUser>[0] | null;
   if (!input) return;
   try { response.status(201).json(await registerUser(input)); } catch (error) { if (error instanceof Error && error.message === "EMAIL_ALREADY_REGISTERED") response.status(409).json({ error: "EMAIL_ALREADY_REGISTERED" }); else response.status(500).json({ error: "REGISTRATION_FAILED" }); }
 });
 
-authRouter.post("/login", async (request, response) => {
+authRouter.post("/login", authRateLimit, async (request, response) => {
   const input = validate(loginSchema, request.body, response) as Parameters<typeof loginUser>[0] | null;
   if (!input) return;
   try { response.json(await loginUser(input)); } catch (error) { if (error instanceof Error && error.message === "INVALID_CREDENTIALS") response.status(401).json({ error: "INVALID_CREDENTIALS" }); else response.status(500).json({ error: "LOGIN_FAILED" }); }
