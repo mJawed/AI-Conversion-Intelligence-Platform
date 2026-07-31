@@ -624,3 +624,151 @@ Verification results on a fresh API instance:
 - Organization detail endpoint: passed (`200`)
 - Organization members endpoint: passed (`200`)
 - Unauthenticated organization access: passed (`401`)
+
+## Backend Phase 4 — Website management
+
+**Status:** Complete
+
+### Completed
+
+- Added organization-scoped website creation with generated unique tracking IDs.
+- Added website listing and detail endpoints.
+- Added validated website settings updates for name, domain, timezone, currency, and industry.
+- Added pause and archive lifecycle endpoints.
+- Added deletion safeguards: websites must be archived before deletion.
+- Restricted website mutations by organization role.
+- Normalized and validated website domains before persistence.
+- Ensured website lookups always include both organization and website identifiers.
+
+### API Endpoints
+
+```text
+GET    /api/v1/organizations/:organizationId/websites
+POST   /api/v1/organizations/:organizationId/websites
+GET    /api/v1/organizations/:organizationId/websites/:websiteId
+PATCH  /api/v1/organizations/:organizationId/websites/:websiteId
+POST   /api/v1/organizations/:organizationId/websites/:websiteId/pause
+POST   /api/v1/organizations/:organizationId/websites/:websiteId/archive
+DELETE /api/v1/organizations/:organizationId/websites/:websiteId
+```
+
+### Verification
+
+- API TypeScript check: passed
+- Website creation: passed (`201`)
+- Website listing: passed (`200`)
+- Website update: passed (`200`)
+- Delete-before-archive safeguard: passed (`409`)
+- Website pause: passed (`200`)
+- Website archive: passed (`200`)
+- Archived website deletion: passed (`204`)
+
+## Backend Phase 5 — Tracking installation and verification
+
+**Status:** Complete
+
+### Completed
+
+- Added persistent tracking installation status to websites.
+- Added first-event, last-event, and verification timestamps.
+- Added tracking-script configuration endpoint with a ready-to-install snippet.
+- Added domain-aware tracking verification.
+- Added a `recordTrackingEvent` service hook for the future public event collector.
+- Added verification rate limiting: five attempts per ten-minute window per user, organization, and website.
+- Added tracking script URL configuration through `TRACKING_SCRIPT_URL`.
+
+### API Endpoints
+
+```text
+GET  /api/v1/organizations/:organizationId/websites/:websiteId/tracking-script
+POST /api/v1/organizations/:organizationId/websites/:websiteId/verify
+```
+
+### Verification
+
+- Tracking migration applied to Neon: passed
+- API and dashboard typechecks: passed
+- Tracking script configuration: passed (`200`)
+- No-event verification state: passed (`202`)
+- Domain mismatch validation: passed (`400`)
+- Verification rate limit: passed (`429`)
+
+The public event ingestion endpoint remains part of Backend Phase 7. Once it receives a valid event, it will call `recordTrackingEvent` and transition the website to `VERIFIED`.
+
+## Backend Phase 6 — Frontend API integration
+
+**Status:** Complete
+
+### Completed
+
+- Added browser session state with access-token storage and refresh-token rotation.
+- Added live login flow at `/login`.
+- Added authenticated current-user and organization loading.
+- Added organization and website selectors for live mode.
+- Added live website settings loading and updates.
+- Added live tracking-script and connection-verification actions in Settings.
+- Added loading, retry, error, empty, and signed-out states.
+- Preserved mock mode as the default for analytics screens while live analytics endpoints are built.
+
+### Configuration
+
+```bash
+NEXT_PUBLIC_USE_MOCK_DATA=false
+NEXT_PUBLIC_API_URL=http://localhost:4000
+```
+
+Start the API and dashboard, then open `/login`. The dashboard can use the seeded owner account or any account created through the authentication API.
+
+### Verification
+
+- Dashboard TypeScript check: passed
+- API TypeScript check: passed
+- API contract types for authentication, organizations, websites, tracking configuration, and verification: passed
+
+## Backend Phase 7 — Public tracking event collector
+
+**Status:** Complete
+
+### Completed
+
+- Added public `POST /api/v1/collect` event ingestion.
+- Added tracking-ID lookup and active-website validation.
+- Added Zod payload validation for page views, sessions, forms, conversions, clicks, scrolls, and custom events.
+- Added 32 KB JSON request-body limit.
+- Added origin checks against the configured website domain.
+- Added process-local rate limiting per tracking ID and client IP.
+- Added 24-hour process-local duplicate event protection by tracking ID and event ID.
+- Added recursive masking for sensitive properties and removed URL query strings before the event leaves the collector.
+- Added first-event recording through the website installation state hook.
+- Rejected paused and archived website tracking requests.
+
+### API Endpoint
+
+```text
+POST /api/v1/collect
+```
+
+Required event fields:
+
+```json
+{
+  "trackingId": "trk_example",
+  "eventId": "evt_12345678",
+  "eventType": "page_view",
+  "visitorId": "visitor_123",
+  "sessionId": "session_123",
+  "url": "https://example.com/pricing"
+}
+```
+
+### Verification
+
+- API TypeScript check: passed
+- Valid event accepted and first event detected: passed (`202`)
+- Sensitive property masking and URL query removal: passed
+- Duplicate event response: passed
+- Invalid tracking ID rejection: passed (`401`)
+- Disallowed origin rejection: passed (`403`)
+- Rate-limit logic implemented with `429` response and `Retry-After`
+
+Durable event storage, queue delivery, and distributed rate limiting remain part of Backend Phase 8.
