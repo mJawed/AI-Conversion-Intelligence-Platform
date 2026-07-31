@@ -1,0 +1,14 @@
+{
+  "name": "ai-conversion-intelligence-platform",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace @ai-growth/dashboard\" \"npm run dev --workspace @ai-growth/api\"",
+    "build": "npm run build --workspace @ai-growth/dashboard && npm run build --workspace @ai-growth/api",
+    "lint": "npm run lint --workspace @ai-growth/dashboard && npm run lint --workspace @ai-growth/api",
+    "typecheck": "npm run typecheck --workspace @ai-growth/dashboard && npm run typecheck --workspace @ai-growth/api"
+  },
+  "workspaces": ["apps/*", "packages/*"],
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
