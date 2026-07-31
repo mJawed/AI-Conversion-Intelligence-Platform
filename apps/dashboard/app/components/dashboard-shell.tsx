@@ -1,6 +1,16 @@
+"use client";
+
 import Link from "next/link";
 import { navigationItems } from "../data/mock";
+import { useAccount, useMockData } from "../lib/account-context";
 import { ApiStatus } from "./api-status";
+
+function WorkspaceSwitcher() {
+  const { organizations, selectedOrganization, websites, selectedWebsite, selectOrganization, selectWebsite, isLoading } = useAccount();
+  if (useMockData) return null;
+  if (isLoading && !selectedOrganization) return <span className="workspace-loading">Loading workspace…</span>;
+  return <div className="workspace-switcher"><select aria-label="Organization" value={selectedOrganization?.id ?? ""} onChange={(event) => selectOrganization(event.target.value)}><option value="" disabled>Select organization</option>{organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}</select><select aria-label="Website" value={selectedWebsite?.id ?? ""} onChange={(event) => selectWebsite(event.target.value)}><option value="" disabled>Select website</option>{websites.map((website) => <option key={website.id} value={website.id}>{website.name}</option>)}</select></div>;
+}
 
 export function DashboardShell({ children, activeHref = "/" }: Readonly<{ children: React.ReactNode; activeHref?: string }>) {
   return (
@@ -20,7 +30,7 @@ export function DashboardShell({ children, activeHref = "/" }: Readonly<{ childr
           ))}
         </nav>
 
-        <div className="sidebar-footer"><span className="status-dot" /> Platform foundation ready</div>
+        <AccountFooter />
       </aside>
       <section className="content">{children}</section>
     </main>
@@ -31,9 +41,15 @@ export function PageHeader({ action, title = "Good morning.", eyebrow = "Convers
   return (
     <header className="topbar">
       <div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1></div>
-      <div className="topbar-actions"><ApiStatus />{action}</div>
+      <div className="topbar-actions"><WorkspaceSwitcher /><ApiStatus />{action}</div>
     </header>
   );
+}
+
+function AccountFooter() {
+  const { user, error } = useAccount();
+  if (useMockData) return <div className="sidebar-footer"><span className="status-dot" /> Platform foundation ready</div>;
+  return <div className="sidebar-footer"><span className="status-dot" /> {user ? user.email : <Link href="/login">Sign in to live data</Link>}{error && <small className="account-error">{error}</small>}</div>;
 }
 
 export function EmptyState({ title, description, action }: Readonly<{ title: string; description: string; action?: React.ReactNode }>) {
