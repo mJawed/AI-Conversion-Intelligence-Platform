@@ -772,3 +772,353 @@ Required event fields:
 - Rate-limit logic implemented with `429` response and `Retry-After`
 
 Durable event storage, queue delivery, and distributed rate limiting remain part of Backend Phase 8.
+
+## Backend Phase 8 — Queue and event persistence
+
+**Status:** Complete as an integration foundation; external services disabled by default
+
+### Completed
+
+- Added RabbitMQ publisher and consumer topology with durable process, retry, and dead-letter queues.
+- Added persistent delivery mode and retry headers with three processing attempts.
+- Added Redis active-session adapter with a 30-minute session TTL.
+- Added ClickHouse HTTP JSONEachRow persistence adapter.
+- Added ClickHouse table definition at `apps/api/sql/events.sql`.
+- Added event-pipeline metrics at `GET /health/pipeline`.
+- Added graceful API shutdown for RabbitMQ, Redis, and Prisma resources.
+- Connected the public collector to the pipeline publisher when enabled.
+- Kept the pipeline disabled by default so development can continue without Docker services.
+
+### Configuration
+
+```env
+EVENT_PIPELINE_ENABLED=false
+REDIS_ENABLED=false
+CLICKHOUSE_ENABLED=false
+RABBITMQ_URL=amqp://growth:growth@localhost:5672
+REDIS_URL=redis://localhost:6379
+CLICKHOUSE_URL=http://localhost:8123
+```
+
+Enable the pipeline only after RabbitMQ is available. Enable Redis and ClickHouse after their schema/service checks are complete. Apply `apps/api/sql/events.sql` to ClickHouse before enabling `CLICKHOUSE_ENABLED`.
+
+### Verification
+
+- API and dashboard typechecks: passed
+- API health with pipeline disabled: passed
+- Pipeline health endpoint: passed (`200`)
+- Disabled-mode metrics report: passed
+
+The next phase is Backend Phase 9, which builds analytics APIs over the persisted event data.
+
+## Backend Phase 9 — Analytics APIs
+
+**Status:** Complete as a tenant-scoped analytics API foundation
+
+### Completed
+
+- Added authenticated, organization-scoped analytics context validation.
+- Added ClickHouse query adapter with parameterized website/date filters.
+- Added overview metrics, top pages, and traffic trend queries.
+- Added visitor and session endpoints with pagination.
+- Added forms analytics endpoint using form event properties.
+- Added funnel endpoint contract with an explicit empty state until funnel definitions exist.
+- Added behaviour, heatmap, replay, and AI insight endpoint contracts.
+- Added `behavior` alias alongside the documented `behaviour` route.
+- Added date range, limit, offset, and sort query contract validation.
+- Added consistent unauthorized, invalid-query, unavailable, and tenant-scope errors.
+
+### API Endpoints
+
+```text
+GET /api/v1/analytics/overview
+GET /api/v1/analytics/visitors
+GET /api/v1/analytics/sessions
+GET /api/v1/analytics/forms
+GET /api/v1/analytics/funnels
+GET /api/v1/analytics/behaviour
+GET /api/v1/analytics/heatmaps
+GET /api/v1/analytics/replays
+GET /api/v1/analytics/insights
+```
+
+Required context query parameters:
+
+```text
+organizationId=<organization UUID>
+websiteId=<website UUID>
+```
+
+Optional parameters include `from`, `to`, `limit`, `offset`, and `sort`.
+
+### Verification
+
+- API and dashboard typechecks: passed
+- Unauthenticated request rejection: passed (`401`)
+- Invalid analytics query rejection: passed (`400`)
+- Authorized request with ClickHouse disabled: passed (`503`)
+- Pipeline health endpoint remained available: passed (`200`)
+
+The dashboard analytics screens still use mock data until ClickHouse is enabled and the frontend resource adapters are connected to these endpoints.
+
+## Backend Phase 10 — Security and compliance
+
+**Status:** Complete as a security/compliance foundation
+
+### Completed
+
+- Added Helmet security headers.
+- Added allowlisted application CORS with a separate public collector CORS path.
+- Added request logging that records method, path, status, duration, IP, and request ID without request bodies, authorization headers, or event payloads.
+- Added authentication throttling for registration and login.
+- Added AES-256-GCM encrypted API-key storage.
+- Added owner/admin API-key create, list, and revoke endpoints.
+- Added audit-log persistence and organization audit-log endpoint.
+- Added privacy export endpoint with sensitive credential fields excluded.
+- Added export and deletion request workflow with audit records.
+- Added Prisma models and migration for API keys, audit logs, and privacy requests.
+
+### Configuration
+
+```env
+CORS_ORIGINS=http://localhost:3000
+ENCRYPTION_KEY=<64 hexadecimal characters generated from a secure secret>
+```
+
+Generate a development encryption key with:
+
+```bash
+openssl rand -hex 32
+```
+
+### API Endpoints
+
+```text
+GET    /api/v1/organizations/:organizationId/api-keys
+POST   /api/v1/organizations/:organizationId/api-keys
+DELETE /api/v1/organizations/:organizationId/api-keys/:apiKeyId
+GET    /api/v1/organizations/:organizationId/audit-logs
+GET    /api/v1/privacy/export?organizationId=<id>
+GET    /api/v1/privacy/requests?organizationId=<id>
+POST   /api/v1/privacy/requests
+```
+
+### Verification
+
+- Security migration applied to Neon: passed
+- API and dashboard typechecks: passed
+- Helmet header: passed
+- Allowlisted CORS header: passed
+- API-key creation: passed (`201`)
+- API-key list excludes secret and ciphertext: passed
+- Privacy export: passed (`200`)
+- Privacy deletion request: passed (`202`)
+- Audit-log access: passed (`200`)
+- API-key revoke: passed (`204`)
+
+Actual deletion execution, scheduled retention jobs, legal-policy configuration, and distributed rate-limit storage remain production-hardening work for Phase 11 and deployment operations.
+
+## Backend Phase 11 — Testing and production readiness
+
+**Status:** Complete as a private-beta readiness foundation
+
+### Completed
+
+- Added Node test-runner unit and contract tests for domains, event validation/masking, analytics ranges, and API-key encryption.
+- Added opt-in API integration test harness.
+- Added non-interactive ESLint CLI configuration for API and dashboard TypeScript.
+- Added `/ready` readiness endpoint covering database and enabled event-pipeline state.
+- Added isolated production build support through `NEXT_DIST_DIR` for safe local verification.
+- Added GitHub Actions CI for Prisma validation, generation, lint, typecheck, tests, and build.
+- Added deployment, environment, health-check, secret-rotation, and operations documentation.
+- Added database migration status command.
+
+### Verification
+
+- Unit/contract tests: passed (4/4)
+- Optional integration suite: available and skipped unless explicitly enabled
+- ESLint: passed
+- Prisma schema validation: passed
+- API and dashboard typechecks: passed
+- Dashboard production build in isolated `.next-ci`: passed with existing Autoprefixer warnings
+- API production build: passed
+- Readiness endpoint: passed (`200` with database available and pipeline disabled)
+
+Remaining production operations—external service provisioning, distributed rate limiting, retention jobs, monitoring integration, and legal-policy review—must be completed before public launch.
+
+## Infrastructure Phase 12 — Production deployment foundation
+
+**Status:** Deployment automation complete; external service provisioning pending
+
+### Completed
+
+- Added `prisma migrate deploy` for non-interactive production migrations.
+- Added production environment validation for required secrets, service URLs, pipeline flags, encryption-key format, and production CORS safety.
+- Added non-mutating RabbitMQ, Redis, and ClickHouse connectivity checks.
+- Added a ClickHouse schema application command using `apps/api/sql/events.sql`.
+- Documented provisioning order, secret-manager requirements, backups, retention, restore testing, and rollout checks in `DEPLOYMENT.md`.
+
+### Verification
+
+- Prisma schema validation: passed
+- Production migration deployment: passed; 5 migrations found and no pending migrations
+- Unit/contract tests: passed (4/4)
+- ESLint: passed
+- API and dashboard typechecks: passed
+- External RabbitMQ, Redis, and ClickHouse provisioning: pending deployment credentials and hosted resources
+
+Phase 12 remains open until the four production services are provisioned, reachable from the API deployment, and `/health/db` plus `/ready` are healthy with the production pipeline configuration.
+
+## Frontend Phase 1 — Registration and authentication UX
+
+**Status:** Complete
+
+### Completed
+
+- Added the browser registration page at `/register`.
+- Connected registration to `POST /api/v1/auth/register` and redirected new users to onboarding.
+- Added client-side name, email, password, and password-confirmation validation.
+- Added friendly handling for duplicate email, invalid credentials, validation, expired session, and API-unavailable errors.
+- Added login/register navigation and removed prefilled test credentials from the login page.
+- Added protected dashboard redirect when live mode has no valid session.
+- Added sign-out action that revokes the refresh token and returns to login.
+
+### Verification
+
+- Dashboard ESLint: passed
+- Dashboard typecheck: passed
+- Dashboard production build: passed
+
+The remaining authentication work is password recovery and email verification, which depends on the corresponding backend workflows.
+
+## Frontend Phase 2 — Website onboarding and tracking installation
+
+**Status:** Complete
+
+### Completed
+
+- Replaced the placeholder onboarding form with a live website-creation flow.
+- Added client-side domain normalization and validation for domain-only values.
+- Connected website creation to the authenticated organization API.
+- Added tracking-script retrieval, copy-to-clipboard, tracking ID display, and installation instructions.
+- Added pending, verified, and not-detected installation states.
+- Added connection verification with retry guidance for unpublished scripts, incorrect domains, and ad blockers.
+- Added live-mode redirect for unauthenticated onboarding access.
+- Preserved a useful mock-mode demo path for local UI development.
+
+### Verification
+
+- Dashboard ESLint: passed
+- Dashboard typecheck: passed
+- Dashboard production build: passed
+
+The backend collector and hosted tracking-script delivery still need production infrastructure before real website events can be verified outside local development.
+
+## Frontend Phase 3 — Live overview analytics
+
+**Status:** Complete
+
+### Completed
+
+- Replaced the Overview page’s mock metrics with authenticated live analytics requests in live mode.
+- Added website selection and 7/30/90-day date-range filters.
+- Connected visitors, sessions, conversion rate, traffic trend, and top-page data.
+- Added explicit unavailable states for realtime visitors and AI insights until their APIs are available.
+- Added loading, empty, error, and retry states with installation and onboarding actions.
+- Preserved mock mode with a visible demo-data notice for local development.
+- Added live-mode API error handling and safe chart behavior for empty or single-point datasets.
+
+### Verification
+
+- Dashboard ESLint: passed
+- Dashboard typecheck: passed
+- Dashboard production build: passed
+
+The Overview can display live values once ClickHouse is enabled and populated. Realtime visitors, bounce/average-session fields, and generated AI insights remain dependent on their backend capabilities.
+
+## Frontend Phase 4 — Visitors, behaviour, forms, and sessions
+
+**Status:** Complete
+
+### Completed
+
+- Connected Visitors to authenticated live visitor analytics with date ranges, search, status filtering, sorting, and detail states.
+- Connected Behaviour to live click, page-view, and scroll event aggregates.
+- Connected Forms to live form-start, form-submit, completion-rate, and abandonment data.
+- Added website/date selection, loading, empty, error, and retry states to all Phase 4 pages.
+- Replaced unavailable visitor metadata, timelines, field-level form data, scroll depth, rage/dead click detection, and journey aggregation with explicit not-available guidance instead of fabricated values.
+- Preserved mock-data mode for local demos.
+
+### Verification
+
+- Dashboard ESLint: passed
+- Dashboard typecheck: passed
+- Dashboard production build: passed
+
+Detailed session timelines, field-level form events, scroll depth, rage/dead click detection, and landing/exit aggregation remain backend data-collection work for later phases.
+
+## Frontend Phase 5 — Heatmaps and replays
+
+**Status:** Complete
+
+### Completed
+
+- Connected Heatmaps to authenticated page-level click analytics with website-scoped date queries.
+- Added page selection and 7/30/90-day filters.
+- Added explicit unavailable states for coordinate-level heatmaps, scroll-depth mode, dead-click mode, and AI summaries when the event payload does not support them.
+- Connected Replays to authenticated session aggregates with date filters and conversion status.
+- Added privacy-safe unavailable states for screen playback, device/country metadata, detailed timelines, and AI summaries until session recording storage is enabled.
+- Preserved mock-mode visual demos and existing privacy organization scoping through the authenticated API context.
+
+### Verification
+
+- Dashboard ESLint: passed
+- Dashboard typecheck: passed
+- Dashboard production build: passed
+
+Coordinate-level heatmaps and full replay playback remain dependent on backend tracking payload and session-storage capabilities.
+
+## Frontend Phase 6 — Funnel and conversion configuration
+
+**Status:** Complete as a frontend configuration foundation
+
+### Completed
+
+- Added funnel create and edit flows in the dashboard.
+- Added conversion-goal selection and funnel-step configuration.
+- Added validation for funnel names, minimum steps, empty fields, duplicate paths, and missing goals.
+- Added step add/remove controls with an eight-step limit.
+- Added archive control and demo-mode state updates.
+- Added role-aware controls for owner, admin, and developer permissions.
+- Added live-mode messaging when funnel persistence and analytics configuration are not connected.
+- Added date-range controls and preserved organization-scoped live API loading.
+
+### Verification
+
+- Dashboard ESLint: passed
+- Dashboard typecheck: passed
+- Dashboard production build: passed
+
+Live funnel persistence, conversion-goal storage, permissions enforcement, and funnel analytics queries remain backend Phase 16 work.
+
+## Frontend Phase 7 — AI insights experience
+
+**Status:** Complete as an insights UI foundation
+
+### Completed
+
+- Connected the Insights page to the authenticated insights analytics endpoint.
+- Added 7/30/90-day filters and live loading, empty, error, and retry states.
+- Added category, priority, status, and recent/priority sorting controls.
+- Added evidence, confidence, problem, reason, business impact, recommendation, and expected-improvement rendering.
+- Added resolve and dismiss lifecycle actions in demo mode.
+- Added role-aware review controls and live-mode messaging while insight persistence is unavailable.
+- Added an explicit AI generation unavailable state when baseline signals or the AI service are not enabled.
+
+### Verification
+
+- Dashboard ESLint: passed
+- Dashboard typecheck: passed
+- Dashboard production build: passed
+
+AI generation, persisted insight lifecycle, deduplication, provider controls, and evidence-backed insight storage remain backend Phase 17 work.
