@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  DEVELOPER
+  MARKETING
+  VIEWER
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum WebsiteStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+model User {
+  id                 String               @id @default(uuid()) @db.Uuid
+  name               String?
+  email              String               @unique
+  passwordHash       String?              @map("password_hash")
+  avatar             String?
+  provider           String?
+  emailVerifiedAt    DateTime?            @map("email_verified_at")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+  memberships        OrganizationMember[]
+  ownedOrganizations Organization[]       @relation("OrganizationOwner")
+
+  @@map("users")
+}
+
+model Organization {
+  id        String               @id @default(uuid()) @db.Uuid
+  ownerId   String               @map("owner_id") @db.Uuid
+  name      String
+  slug      String               @unique
+  plan      String               @default("FREE")
+  status    OrganizationStatus   @default(ACTIVE)
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+  owner     User                 @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members   OrganizationMember[]
+  websites  Website[]
+
+  @@index([ownerId])
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  role           OrganizationRole @default(VIEWER)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+model Website {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  name           String
+  domain         String
+  trackingId     String        @unique @map("tracking_id")
+  timezone       String        @default("UTC")
+  currency       String        @default("USD")
+  industry       String?
+  status         WebsiteStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([domain])
+  @@map("websites")
+}
