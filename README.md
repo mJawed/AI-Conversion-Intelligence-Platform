@@ -31,6 +31,14 @@ organizations, organization memberships, and websites.
 
 Database health is available at http://localhost:4000/health/db when the API is running.
 
+Readiness is available at http://localhost:4000/ready. Run unit/contract tests with:
+
+```bash
+npm test
+```
+
+Production checks are grouped under `npm run ci`. Deployment and service configuration are documented in [DEPLOYMENT.md](DEPLOYMENT.md).
+
 Start local infrastructure when needed:
 
 ```bash

@@ -5,13 +5,17 @@
     "dev": "concurrently \"npm run dev --workspace @ai-growth/dashboard\" \"npm run dev --workspace @ai-growth/api\"",
     "build": "npm run build --workspace @ai-growth/dashboard && npm run build --workspace @ai-growth/api",
     "lint": "npm run lint --workspace @ai-growth/dashboard && npm run lint --workspace @ai-growth/api",
-    "typecheck": "npm run typecheck --workspace @ai-growth/dashboard && npm run typecheck --workspace @ai-growth/api"
+    "typecheck": "npm run typecheck --workspace @ai-growth/dashboard && npm run typecheck --workspace @ai-growth/api",
+    "test": "npm run test --workspace @ai-growth/api",
+    "ci": "npm run db:validate --workspace @ai-growth/api && npm run db:generate --workspace @ai-growth/api && npm run lint && npm run typecheck && npm test && npm run build"
   },
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "@typescript-eslint/parser": "^8.65.0",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.39.1"
   }
 }
