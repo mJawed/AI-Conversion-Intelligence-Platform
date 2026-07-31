@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { navigationItems } from "../data/mock";
+import { ApiStatus } from "./api-status";
 
-export function DashboardShell({ children }: Readonly<{ children: React.ReactNode }>) {
+export function DashboardShell({ children, activeHref = "/" }: Readonly<{ children: React.ReactNode; activeHref?: string }>) {
   return (
     <main className="shell">
       <aside className="sidebar">
@@ -11,8 +12,8 @@ export function DashboardShell({ children }: Readonly<{ children: React.ReactNod
         </Link>
 
         <nav className="primary-nav" aria-label="Primary navigation">
-          {navigationItems.map((item, index) => (
-            <Link className={index === 0 ? "nav-item active" : "nav-item"} href={item.href} key={item.label}>
+          {navigationItems.map((item) => (
+            <Link className={item.href === activeHref ? "nav-item active" : "nav-item"} href={item.href} key={item.label}>
               <span className="nav-icon" aria-hidden="true">{item.icon}</span>
               <span>{item.label}</span>
             </Link>
@@ -26,11 +27,11 @@ export function DashboardShell({ children }: Readonly<{ children: React.ReactNod
   );
 }
 
-export function PageHeader({ action }: Readonly<{ action?: React.ReactNode }>) {
+export function PageHeader({ action, title = "Good morning.", eyebrow = "Conversion intelligence" }: Readonly<{ action?: React.ReactNode; title?: string; eyebrow?: string }>) {
   return (
     <header className="topbar">
-      <div><p className="eyebrow">Conversion intelligence</p><h1>Good morning.</h1></div>
-      {action}
+      <div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1></div>
+      <div className="topbar-actions"><ApiStatus />{action}</div>
     </header>
   );
 }

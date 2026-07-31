@@ -1,20 +1,16 @@
-import { DashboardShell, EmptyState, PageHeader } from "./components/dashboard-shell";
+import { DashboardShell, PageHeader } from "./components/dashboard-shell";
+import { InsightPreview, RealtimeCard, TopPages, TrafficChart } from "./components/overview-widgets";
 import { Button } from "./components/ui";
-import { overviewMetrics } from "./data/mock";
+import { insightPreviews, overviewMetrics, topPages, trafficTrend } from "./data/mock";
 
 export default function DashboardPage() {
   return (
     <DashboardShell>
       <PageHeader action={<Button>＋ Add website</Button>} />
 
-      <div className="notice">
-        <div><strong>Connect your first website</strong><p>Install the tracking SDK to turn visitor behaviour into actionable insights.</p></div>
-        <Button variant="dark">Get tracking code →</Button>
-      </div>
-
       <div className="section-heading">
         <div><p className="eyebrow">Overview</p><h2>Your growth signals</h2></div>
-        <button className="date-pill" type="button">Last 30 days <span aria-hidden="true">▾</span></button>
+        <div className="filters"><button className="website-pill" type="button"><span className="site-favicon">A</span> Acme website <span aria-hidden="true">▾</span></button><button className="date-pill" type="button">Last 30 days <span aria-hidden="true">▾</span></button></div>
       </div>
 
       <div className="metrics">
@@ -22,16 +18,15 @@ export default function DashboardPage() {
           <article className="metric" key={metric.label}>
             <span>{metric.label}</span>
             <strong>{metric.value}</strong>
-            <p>{metric.detail}</p>
+            <p>{metric.detail} <span className={`metric-change ${metric.tone ?? "neutral"}`}>{metric.change}</span></p>
           </article>
         ))}
       </div>
 
-      <EmptyState
-        title="Your dashboard will come alive here"
-        description="Once data starts flowing, you’ll see visitor behaviour, funnel drop-offs, form friction, and AI-powered recommendations in one place."
-        action={<Button variant="dark">Explore setup →</Button>}
-      />
+      <div className="overview-grid"><TrafficChart points={trafficTrend} /><RealtimeCard /></div>
+      <div className="overview-grid lower-grid"><TopPages pages={topPages} /><InsightPreview insights={insightPreviews} /></div>
+
+      <div className="setup-reminder"><div><strong>Want to connect another website?</strong><p>Install the tracking SDK and start collecting conversion signals.</p></div><Button variant="dark">＋ Add website</Button></div>
     </DashboardShell>
   );
 }
