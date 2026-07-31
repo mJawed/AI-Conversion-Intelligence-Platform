@@ -27,6 +27,12 @@ enum WebsiteStatus {
   ARCHIVED
 }
 
+enum TrackingInstallationStatus {
+  NOT_INSTALLED
+  INSTALLED
+  VERIFIED
+}
+
 model User {
   id                 String               @id @default(uuid()) @db.Uuid
   name               String?
@@ -85,6 +91,10 @@ model Website {
   currency       String        @default("USD")
   industry       String?
   status         WebsiteStatus @default(ACTIVE)
+  installationStatus TrackingInstallationStatus @default(NOT_INSTALLED) @map("installation_status")
+  trackingVerifiedAt DateTime? @map("tracking_verified_at")
+  firstEventAt       DateTime? @map("first_event_at")
+  lastEventAt        DateTime? @map("last_event_at")
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)

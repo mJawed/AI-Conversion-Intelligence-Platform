@@ -12,6 +12,7 @@
     "db:format": "prisma format --schema ../../prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema ../../prisma/schema.prisma --name init",
     "db:migrate:auth": "prisma migrate dev --schema ../../prisma/schema.prisma --name auth",
+    "db:migrate:tracking": "prisma migrate dev --schema ../../prisma/schema.prisma --name tracking",
     "db:seed": "tsx ../../prisma/seed.ts"
   },
   "dependencies": {

@@ -4,6 +4,8 @@ import express from "express";
 import { prisma } from "./lib/prisma";
 import { authRouter } from "./auth-routes";
 import { organizationRouter } from "./organization-routes";
+import { websiteRouter } from "./website-routes";
+import { collectorRouter } from "./collector-routes";
 
 dotenv.config();
 dotenv.config({ path: "../../.env" });
@@ -12,9 +14,11 @@ const app = express();
 const port = Number(process.env.API_PORT ?? 4000);
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "32kb" }));
+app.use("/api/v1/collect", collectorRouter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/organizations", organizationRouter);
+app.use("/api/v1/organizations/:organizationId/websites", websiteRouter);
 
 app.get("/health", (_request, response) => {
   response.json({ service: "api", status: "ok", timestamp: new Date().toISOString() });
