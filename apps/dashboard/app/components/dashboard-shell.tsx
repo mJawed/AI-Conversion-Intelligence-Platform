@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { navigationItems } from "../data/mock";
 import { useAccount, useMockData } from "../lib/account-context";
 import { ApiStatus } from "./api-status";
@@ -13,6 +14,11 @@ function WorkspaceSwitcher() {
 }
 
 export function DashboardShell({ children, activeHref = "/" }: Readonly<{ children: React.ReactNode; activeHref?: string }>) {
+  const { user, isLoading } = useAccount();
+  useEffect(() => {
+    if (!useMockData && !isLoading && !user) window.location.href = "/login";
+  }, [isLoading, user]);
+
   return (
     <main className="shell">
       <aside className="sidebar">
@@ -47,9 +53,9 @@ export function PageHeader({ action, title = "Good morning.", eyebrow = "Convers
 }
 
 function AccountFooter() {
-  const { user, error } = useAccount();
+  const { user, error, logout } = useAccount();
   if (useMockData) return <div className="sidebar-footer"><span className="status-dot" /> Platform foundation ready</div>;
-  return <div className="sidebar-footer"><span className="status-dot" /> {user ? user.email : <Link href="/login">Sign in to live data</Link>}{error && <small className="account-error">{error}</small>}</div>;
+  return <div className="sidebar-footer"><span className="status-dot" /> {user ? <><span>{user.email}</span><button className="logout-button" type="button" onClick={() => void logout().then(() => { window.location.href = "/login"; })}>Sign out</button></> : <Link href="/login">Sign in to live data</Link>}{error && <small className="account-error">{error}</small>}</div>;
 }
 
 export function EmptyState({ title, description, action }: Readonly<{ title: string; description: string; action?: React.ReactNode }>) {

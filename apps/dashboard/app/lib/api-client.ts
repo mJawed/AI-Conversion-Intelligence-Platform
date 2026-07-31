@@ -18,7 +18,24 @@ export async function apiRequest<T>(path: string, options?: RequestInit): Promis
     throw new ApiError("The API is unavailable. Check that the API service is running.");
   }
 
-  if (!response.ok) throw new ApiError(`API request failed with status ${response.status}.`, response.status);
+  if (!response.ok) {
+    let message = `API request failed with status ${response.status}.`;
+    try {
+      const payload = await response.json() as { error?: string };
+      const messages: Record<string, string> = {
+        EMAIL_ALREADY_REGISTERED: "An account with this email already exists.",
+        INVALID_CREDENTIALS: "The email or password is incorrect.",
+        VALIDATION_ERROR: "Please check the information you entered.",
+        INVALID_REFRESH_TOKEN: "Your session has expired. Please sign in again.",
+        INVALID_DOMAIN: "Enter a domain such as example.com without a page path.",
+        DOMAIN_MISMATCH: "The verification domain does not match this website.",
+        WEBSITE_CREATE_FAILED: "Could not create the website. Please try again.",
+        VERIFICATION_RATE_LIMITED: "Too many verification attempts. Please wait and try again.",
+      };
+      if (payload.error && messages[payload.error]) message = messages[payload.error];
+    } catch { /* Keep the status-based fallback for non-JSON responses. */ }
+    throw new ApiError(message, response.status);
+  }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
@@ -38,6 +55,13 @@ export function getAnalytics<T>(resource: string, query?: Record<string, string>
   return apiRequest<T>(`/api/v1/analytics/${resource}${search}`);
 }
 
+export function getAuthenticatedAnalytics<T>(resource: string, accessToken: string, query: Record<string, string>) {
+  const search = `?${new URLSearchParams(query).toString()}`;
+  return authenticatedRequest<T>(`/api/v1/analytics/${resource}${search}`, accessToken);
+}
+
+export type AnalyticsRange = { days: number; label: string };
+
 export function postAnalytics<T>(resource: string, body: unknown) {
   return apiRequest<T>(`/api/v1/analytics/${resource}`, { method: "POST", body: JSON.stringify(body) });
 }
@@ -51,6 +75,10 @@ export type AuthResponse = { user: AuthUser; tokens: AuthTokens };
 
 export function login(email: string, password: string) {
   return apiRequest<AuthResponse>("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+export function register(name: string, email: string, password: string) {
+  return apiRequest<AuthResponse>("/api/v1/auth/register", { method: "POST", body: JSON.stringify({ name, email, password }) });
 }
 
 export function refreshSession(refreshToken: string) {
@@ -73,6 +101,10 @@ export function getWebsites(accessToken: string, organizationId: string) {
   return authenticatedRequest<{ websites: ApiWebsite[] }>(`/api/v1/organizations/${organizationId}/websites`, accessToken);
 }
 
+export function createWebsite(accessToken: string, organizationId: string, input: Pick<ApiWebsite, "name" | "domain" | "timezone" | "currency" | "industry">) {
+  return authenticatedRequest<{ website: ApiWebsite }>(`/api/v1/organizations/${organizationId}/websites`, accessToken, { method: "POST", body: JSON.stringify(input) });
+}
+
 export function updateWebsite(accessToken: string, organizationId: string, websiteId: string, input: Partial<Pick<ApiWebsite, "name" | "domain" | "timezone" | "currency" | "industry">>) {
   return authenticatedRequest<{ website: ApiWebsite }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}`, accessToken, { method: "PATCH", body: JSON.stringify(input) });
 }
@@ -82,5 +114,5 @@ export function getTrackingScript(accessToken: string, organizationId: string, w
 }
 
 export function verifyTracking(accessToken: string, organizationId: string, websiteId: string, domain?: string) {
-  return authenticatedRequest<{ verified: boolean; status: string; installationStatus: ApiWebsite["installationStatus"]; message?: string }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/verify`, accessToken, { method: "POST", body: JSON.stringify(domain ? { domain } : {}) });
+  return authenticatedRequest<{ verified: boolean; status: string; installationStatus: ApiWebsite["installationStatus"]; firstEventAt?: string | null; message?: string }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/verify`, accessToken, { method: "POST", body: JSON.stringify(domain ? { domain } : {}) });
 }

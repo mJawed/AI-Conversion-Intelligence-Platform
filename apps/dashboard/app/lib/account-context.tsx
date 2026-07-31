@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { ApiError, type ApiWebsite, type AuthTokens, type AuthUser, type Organization, getCurrentUser, getOrganizations, getWebsites, login as loginRequest, logout as logoutRequest, refreshSession, updateWebsite } from "./api-client";
+import { ApiError, createWebsite as createWebsiteRequest, type ApiWebsite, type AuthTokens, type AuthUser, type Organization, getCurrentUser, getOrganizations, getWebsites, login as loginRequest, logout as logoutRequest, refreshSession, register as registerRequest, updateWebsite } from "./api-client";
 
 const accessTokenKey = "ai-growth.access-token";
 const refreshTokenKey = "ai-growth.refresh-token";
@@ -17,6 +17,8 @@ type AccountContextValue = {
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
+  createWebsite: (input: Pick<ApiWebsite, "name" | "domain" | "timezone" | "currency" | "industry">) => Promise<ApiWebsite>;
   logout: () => Promise<void>;
   retry: () => void;
   selectOrganization: (organizationId: string) => void;
@@ -126,6 +128,21 @@ export function AccountProvider({ children }: Readonly<{ children: React.ReactNo
       setTokens(result.tokens);
       setUser(result.user);
       setRetryKey((key) => key + 1);
+    },
+    async register(name, email, password) {
+      const result = await registerRequest(name, email, password);
+      saveTokens(result.tokens);
+      setTokens(result.tokens);
+      setUser(result.user);
+      setRetryKey((key) => key + 1);
+    },
+    async createWebsite(input) {
+      if (!tokens?.accessToken || !selectedOrganization) throw new Error("Sign in before creating a website.");
+      const result = await createWebsiteRequest(tokens.accessToken, selectedOrganization.id, input);
+      setWebsites((current) => [...current, result.website]);
+      setSelectedWebsiteId(result.website.id);
+      window.localStorage.setItem("ai-growth.website-id", result.website.id);
+      return result.website;
     },
     async logout() {
       if (tokens?.refreshToken) await logoutRequest(tokens.refreshToken).catch(() => undefined);
