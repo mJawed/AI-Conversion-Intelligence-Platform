@@ -141,6 +141,11 @@ export function getAdminUsage(accessToken: string, query?: { organizationId?: st
   return authenticatedRequest<{ usage: AdminUsage }>(`/api/v1/admin/usage${search}`, accessToken);
 }
 
+export type FunnelInput = { name: string; description: string; goal: { type: "conversion" | "form_submit" | "purchase" | "custom"; value?: string }; steps: Array<{ name: string; path: string }> };
+export function createFunnel(accessToken: string, organizationId: string, websiteId: string, input: FunnelInput) { return authenticatedRequest<{ funnel: unknown }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/funnels`, accessToken, { method: "POST", body: JSON.stringify(input) }); }
+export function updateFunnel(accessToken: string, organizationId: string, websiteId: string, funnelId: string, input: FunnelInput) { return authenticatedRequest<{ funnel: unknown }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/funnels/${funnelId}`, accessToken, { method: "PATCH", body: JSON.stringify(input) }); }
+export function archiveFunnel(accessToken: string, organizationId: string, websiteId: string, funnelId: string) { return authenticatedRequest<{ funnel: unknown }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/funnels/${funnelId}`, accessToken, { method: "DELETE" }); }
+
 export function getAdminBilling(accessToken: string) {
   return authenticatedRequest<{ billing: AdminBilling }>("/api/v1/admin/billing", accessToken);
 }
