@@ -112,6 +112,24 @@ RUN_INTEGRATION_TESTS=true npm run test:integration --workspace @ai-growth/api
 - Rotate `JWT_SECRET` and `ENCRYPTION_KEY` through a secrets manager; key rotation requires a planned re-encryption process.
 - Configure retention and deletion jobs for visitor event data before public launch.
 
+### Privacy operations
+
+- Set `EVENT_RETENTION_DAYS` for the desired tracking-event and consent-record
+  lifetime; the free-MVP default is 30 days.
+- Schedule `npm run db:cleanup:events --workspace @ai-growth/api` from the
+  repository root. The cleanup command is repeatable and removes expired
+  tracking events and consent records.
+- Platform administrators move privacy requests to `PROCESSING`. Run
+  `npm run privacy:process --workspace @ai-growth/api` to complete queued
+  requests. A completed `DELETE` request removes tracking, consent, insight,
+  and funnel data for the organization; account, billing, and audit records
+  remain for separate policy review.
+- Consent-gated sites must use the SDK consent API. The tracker supports
+  opt-out and Do Not Track, and the collector masks sensitive properties.
+- Review `PRIVACY.md` with legal counsel before public launch. GDPR, CCPA, and
+  India DPDP obligations depend on the operator, users, processing purposes,
+  and jurisdictions involved.
+
 ## Provisioning order
 
 1. Create or select the free Neon PostgreSQL database.
