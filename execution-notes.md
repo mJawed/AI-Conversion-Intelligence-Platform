@@ -32,6 +32,28 @@
 
 - Dashboard TypeScript check: passed
 - Dashboard production build: passed
+
+## Remaining Plan Phase 17 — AI insight generation
+
+**Status:** Complete as a free, evidence-backed insight foundation
+
+### Completed
+
+- Added persisted insight records with lifecycle status.
+- Added deterministic PostgreSQL insight generation from conversion, form, and
+  interaction signals.
+- Added evidence-backed CRO fields: problem, reason, confidence, business
+  impact, recommendation, priority, and expected improvement.
+- Added protected resolve and dismiss actions with audit logging.
+- Connected the live insights dashboard to generated findings and lifecycle
+  updates.
+
+### Verification
+
+- Prisma migration/database status: passed
+- API typecheck/build: passed
+- API unit tests: passed (14/14)
+- Dashboard production build: passed
 - Static page generation: passed
 
 Next.js reported a non-blocking warning that it could not patch missing SWC lockfile dependencies because registry DNS was unavailable. The application still compiled and the dashboard page was generated successfully.

@@ -126,6 +126,8 @@ The remaining work is below.
 
 ## Phase 17 — AI insight generation
 
+**Status:** Complete as a free, evidence-backed insight foundation
+
 ### Scope
 
 - Define insight generation input contracts.
@@ -134,6 +136,19 @@ The remaining work is below.
 - Add insight deduplication and lifecycle management.
 - Add model/provider configuration and cost controls.
 - Add human-review and dismissal workflows.
+
+### Delivered
+
+- Added persisted `Insight` records with open, dismissed, and resolved states.
+- Added a deterministic PostgreSQL insight generator for low conversion rates,
+  form abandonment, and high click-density signals.
+- Added evidence, confidence, impact, recommendation, priority, and expected
+  improvement fields to every generated insight.
+- Added role-protected insight status updates for Owner, Admin, and Marketing
+  members with audit records.
+- Connected the live dashboard insights page to persisted findings and review
+  actions.
+- Kept external AI providers optional; no paid AI service is required.
 
 ### Completion criteria
 
