@@ -1484,3 +1484,11 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - API typecheck/build: passed
 - API unit tests: passed (14/14)
 - Dashboard production build: passed
+## Remaining Plan Phase 18 — Privacy, retention, and compliance operations
+
+**Status:** Complete as an operational privacy foundation
+
+- Added consent records, consent-granted tracking events, and retention cleanup for tracking and consent data.
+- Added the privacy processor command for queued export/deletion requests and made admin completion of DELETE requests remove tracking, consent, insight, and funnel records.
+- Added `PRIVACY.md` and deployment guidance covering data minimization, masking, consent/opt-out, retention, GDPR, CCPA, India DPDP, and audit-log review.
+- Kept account, billing, and audit records outside the analytics deletion scope pending an explicit legal retention policy.

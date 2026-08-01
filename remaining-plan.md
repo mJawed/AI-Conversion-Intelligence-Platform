@@ -159,6 +159,16 @@ The remaining work is below.
 
 ## Phase 18 — Privacy, retention, and compliance operations
 
+**Status:** Complete as an operational privacy foundation
+
+### Delivered
+
+- Added consent records and consent-granted event handling for the tracking SDK.
+- Added scheduled retention cleanup for tracking events and consent records.
+- Added controlled privacy-request processing and real deletion handling from the admin workflow.
+- Added privacy, retention, masking, consent, GDPR, CCPA, and India DPDP operational documentation.
+- Added audit and access-review guidance for privacy operations.
+
 ### Scope
 
 - Implement scheduled event retention and deletion jobs.
