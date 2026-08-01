@@ -141,7 +141,7 @@ websiteRouter.post("/", requireOrganizationRole("OWNER", "ADMIN", "DEVELOPER"), 
   }
 });
 
-websiteRouter.get("/:websiteId", async (request, response) => {
+websiteRouter.get("/:websiteId", async (request: Request, response: Response) => {
   try {
     const website = await findWebsite(request);
     if (!website) {
@@ -155,7 +155,7 @@ websiteRouter.get("/:websiteId", async (request, response) => {
   }
 });
 
-websiteRouter.get("/:websiteId/tracking-script", async (request, response) => {
+websiteRouter.get("/:websiteId/tracking-script", async (request: Request, response: Response) => {
   try {
     const website = await findWebsite(request);
     if (!website) {
@@ -180,7 +180,7 @@ websiteRouter.get("/:websiteId/tracking-script", async (request, response) => {
   }
 });
 
-websiteRouter.post("/:websiteId/verify", requireOrganizationRole("OWNER", "ADMIN", "DEVELOPER"), async (request, response) => {
+websiteRouter.post("/:websiteId/verify", requireOrganizationRole("OWNER", "ADMIN", "DEVELOPER"), async (request: Request, response: Response) => {
   const key = `${request.authUserId}:${request.organizationId}:${request.params.websiteId}`;
   const limit = checkVerificationRateLimit(key);
   if (!limit.allowed) {
