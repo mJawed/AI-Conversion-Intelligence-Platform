@@ -69,6 +69,19 @@ starting the API, and exposes `/health` for the service health check. Free web
 services can sleep when idle, so the first request after inactivity may be
 slow.
 
+## Password reset
+
+The login page includes `/forgot-password` and `/reset-password`. Reset tokens
+are one-time and expire after 30 minutes; resetting a password also revokes all
+existing refresh sessions.
+
+The free MVP does not include an email provider. In local development, the
+forgot-password response includes a test reset link. In production it returns
+the same generic response but deliberately does not expose a token, so an email
+delivery provider must be connected before offering self-service recovery on a
+public deployment. This avoids putting account-reset tokens in browser responses
+or public logs.
+
 ## Health checks
 
 - `/health` — process health
