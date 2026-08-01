@@ -105,6 +105,27 @@ const customerSummarySelect = {
   _count: { select: { members: true, websites: true } },
 } satisfies Prisma.OrganizationSelect;
 
+const organizationActionSchema = z.object({ reason: z.string().trim().min(5).max(500) });
+
+adminRouter.patch("/customers/:organizationId/status", async (request, response) => {
+  const organizationId = typeof request.params.organizationId === "string" ? request.params.organizationId : "";
+  const nextStatus = request.body?.status;
+  const parsed = organizationActionSchema.safeParse(request.body);
+  if (!organizationId || ![OrganizationStatus.ACTIVE, OrganizationStatus.SUSPENDED].includes(nextStatus)) { response.status(400).json({ error: "INVALID_ORGANIZATION_STATUS" }); return; }
+  if (!parsed.success) { response.status(400).json({ error: "ADMIN_ACTION_REASON_REQUIRED", details: parsed.error.flatten() }); return; }
+  try {
+    const organization = await prisma.organization.findUnique({ where: { id: organizationId }, select: { id: true, name: true, status: true } });
+    if (!organization) { response.status(404).json({ error: "CUSTOMER_NOT_FOUND" }); return; }
+    if (organization.status === nextStatus) { response.status(409).json({ error: "ORGANIZATION_STATUS_UNCHANGED" }); return; }
+    const updated = await prisma.$transaction(async (transaction) => {
+      const result = await transaction.organization.update({ where: { id: organizationId }, data: { status: nextStatus }, select: { id: true, name: true, status: true, updatedAt: true } });
+      await transaction.auditLog.create({ data: { userId: request.platformAdminId, action: `admin.organization_${String(nextStatus).toLowerCase()}`, entityType: "organization", entityId: organizationId, metadata: { reason: parsed.data.reason, previousStatus: organization.status, nextStatus }, ipAddress: request.ip } });
+      return result;
+    });
+    response.json({ organization: updated });
+  } catch (error) { console.error("Admin organization status update failed", error); response.status(500).json({ error: "ADMIN_ORGANIZATION_STATUS_FAILED" }); }
+});
+
 adminRouter.get("/customers", async (request, response) => {
   const parsed = customerQuerySchema.safeParse(request.query);
   if (!parsed.success) { response.status(400).json({ error: "INVALID_CUSTOMER_QUERY", details: parsed.error.flatten() }); return; }
@@ -188,4 +209,71 @@ adminRouter.get("/usage", async (request, response) => {
     console.error("Admin usage report failed", error);
     response.status(500).json({ error: "ADMIN_USAGE_FETCH_FAILED" });
   }
+});
+
+const privacyAdminQuerySchema = z.object({
+  status: z.string().trim().max(30).optional(),
+  type: z.string().trim().max(20).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+adminRouter.get("/privacy-requests", async (request, response) => {
+  const parsed = privacyAdminQuerySchema.safeParse(request.query);
+  if (!parsed.success) { response.status(400).json({ error: "INVALID_PRIVACY_QUERY", details: parsed.error.flatten() }); return; }
+  const query = parsed.data;
+  const where = { ...(query.status ? { status: query.status as "PENDING" | "PROCESSING" | "COMPLETED" | "REJECTED" } : {}), ...(query.type ? { type: query.type as "EXPORT" | "DELETE" } : {}) };
+  const skip = (query.page - 1) * query.limit;
+  try {
+    const [total, requests] = await Promise.all([
+      prisma.privacyRequest.count({ where }),
+      prisma.privacyRequest.findMany({ where, orderBy: { createdAt: "desc" }, skip, take: query.limit, select: { id: true, type: true, status: true, createdAt: true, completedAt: true, organization: { select: { id: true, name: true, slug: true } }, user: { select: { id: true, email: true, name: true } } } }),
+    ]);
+    await writeAuditLog({ userId: request.platformAdminId, action: "admin.privacy_requests_listed", entityType: "privacy_request", metadata: { status: query.status, type: query.type, page: query.page, limit: query.limit }, ipAddress: request.ip });
+    response.json({ requests, pagination: { page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) } });
+  } catch (error) { console.error("Admin privacy request list failed", error); response.status(500).json({ error: "ADMIN_PRIVACY_REQUESTS_FAILED" }); }
+});
+
+adminRouter.patch("/privacy-requests/:requestId", async (request, response) => {
+  const requestId = typeof request.params.requestId === "string" ? request.params.requestId : "";
+  const parsed = z.object({ status: z.enum(["PROCESSING", "COMPLETED", "REJECTED"]), reason: z.string().trim().min(5).max(500) }).safeParse(request.body);
+  if (!requestId || !parsed.success) { response.status(400).json({ error: "INVALID_PRIVACY_UPDATE", details: parsed.success ? undefined : parsed.error.flatten() }); return; }
+  try {
+    const current = await prisma.privacyRequest.findUnique({ where: { id: requestId }, select: { id: true, status: true, organizationId: true } });
+    if (!current) { response.status(404).json({ error: "PRIVACY_REQUEST_NOT_FOUND" }); return; }
+    const updated = await prisma.$transaction(async (transaction) => {
+      const result = await transaction.privacyRequest.update({ where: { id: requestId }, data: { status: parsed.data.status, completedAt: parsed.data.status === "COMPLETED" || parsed.data.status === "REJECTED" ? new Date() : null } });
+      await transaction.auditLog.create({ data: { userId: request.platformAdminId, organizationId: current.organizationId, action: "admin.privacy_request_updated", entityType: "privacy_request", entityId: requestId, metadata: { reason: parsed.data.reason, previousStatus: current.status, nextStatus: parsed.data.status }, ipAddress: request.ip } });
+      return result;
+    });
+    response.json({ request: updated });
+  } catch (error) { console.error("Admin privacy request update failed", error); response.status(500).json({ error: "ADMIN_PRIVACY_REQUEST_UPDATE_FAILED" }); }
+});
+
+const auditAdminQuerySchema = z.object({ action: z.string().trim().max(120).optional(), entityType: z.string().trim().max(80).optional(), from: z.string().datetime().optional(), to: z.string().datetime().optional(), page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(50), format: z.enum(["json", "csv"]).default("json") });
+
+function csvCell(value: unknown) { return `"${String(value ?? "").replace(/"/g, '""')}"`; }
+
+adminRouter.get("/audit-logs", async (request, response) => {
+  const parsed = auditAdminQuerySchema.safeParse(request.query);
+  if (!parsed.success) { response.status(400).json({ error: "INVALID_AUDIT_QUERY", details: parsed.error.flatten() }); return; }
+  const query = parsed.data;
+  let range: { from?: Date; to?: Date } = {};
+  try { range = getOverviewRange({ from: query.from, to: query.to }); } catch { if (query.from || query.to) { response.status(400).json({ error: "INVALID_DATE_RANGE" }); return; } }
+  const where = { ...(query.action ? { action: { contains: query.action, mode: "insensitive" as const } } : {}), ...(query.entityType ? { entityType: query.entityType } : {}), ...(range.from || range.to ? { createdAt: { gte: range.from, lt: range.to } } : {}) };
+  const skip = (query.page - 1) * query.limit;
+  try {
+    const [total, logs] = await Promise.all([
+      prisma.auditLog.count({ where }),
+      prisma.auditLog.findMany({ where, orderBy: { createdAt: "desc" }, skip, take: query.limit, select: { id: true, action: true, entityType: true, entityId: true, metadata: true, ipAddress: true, createdAt: true, user: { select: { email: true } } } }),
+    ]);
+    await writeAuditLog({ userId: request.platformAdminId, action: "admin.audit_logs_listed", entityType: "audit_log", metadata: { action: query.action, entityType: query.entityType, page: query.page, limit: query.limit, format: query.format }, ipAddress: request.ip });
+    if (query.format === "csv") {
+      const header = "id,created_at,action,entity_type,entity_id,user_email,ip_address,metadata";
+      const rows = logs.map((log) => [log.id, log.createdAt.toISOString(), log.action, log.entityType, log.entityId, log.user?.email, log.ipAddress, JSON.stringify(log.metadata ?? {})].map(csvCell).join(","));
+      response.type("text/csv").set("Content-Disposition", "attachment; filename=admin-audit-logs.csv").send([header, ...rows].join("\n"));
+      return;
+    }
+    response.json({ auditLogs: logs, pagination: { page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) } });
+  } catch (error) { console.error("Admin audit log list failed", error); response.status(500).json({ error: "ADMIN_AUDIT_LOGS_FAILED" }); }
 });
