@@ -1492,3 +1492,11 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added the privacy processor command for queued export/deletion requests and made admin completion of DELETE requests remove tracking, consent, insight, and funnel records.
 - Added `PRIVACY.md` and deployment guidance covering data minimization, masking, consent/opt-out, retention, GDPR, CCPA, India DPDP, and audit-log review.
 - Kept account, billing, and audit records outside the analytics deletion scope pending an explicit legal retention policy.
+## Remaining Plan Phase 19 — Production observability and reliability
+
+**Status:** Complete as a free-MVP observability and reliability foundation
+
+- Added bounded in-memory request metrics for uptime, p50/p95/max latency, 5xx responses, and rate-limited responses.
+- Added `/health/metrics` and a dependency-free health load-test command.
+- Added `RELIABILITY.md` with initial service targets, alert thresholds, backup/restore drill, rollback runbook, load-testing safeguards, and incident ownership.
+- Kept monitoring dependency-free for the free MVP; external log shipping and paid error-monitoring integrations remain optional deployment enhancements.

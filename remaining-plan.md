@@ -188,6 +188,15 @@ The remaining work is below.
 
 ## Phase 19 — Production observability and reliability
 
+**Status:** Complete as a free-MVP observability and reliability foundation
+
+### Delivered
+
+- Added bounded request latency, 5xx, and rate-limit metrics at `/health/metrics`.
+- Preserved structured request logs with safe fields and request timing.
+- Added a dependency-free health load-test command.
+- Added service targets, alert thresholds, backup/restore drill, rollback, and incident runbooks in `RELIABILITY.md`.
+
 ### Scope
 
 - Add structured log shipping.
