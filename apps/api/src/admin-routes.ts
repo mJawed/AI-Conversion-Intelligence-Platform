@@ -1,4 +1,4 @@
-import { OrganizationStatus, Prisma } from "@prisma/client";
+import { OrganizationStatus, Prisma, SubscriptionStatus } from "@prisma/client";
 import { Router as ExpressRouter } from "express";
 import { z } from "zod";
 import { requireAuth } from "./auth-routes";
@@ -36,32 +36,47 @@ adminRouter.get("/overview", async (request, response) => {
 
   try {
     const activityWhere = { createdAt: { gte: range.from, lt: range.to } };
-    const [totalUsers, activeUserRows, newUsers, totalOrganizations, activeOrganizationRows, newOrganizations, freeOrganizations, paidOrganizations, totalWebsites, eventCount] = await Promise.all([
+    const [totalUsers, activeUserRows, newUsers, totalOrganizations, activeOrganizationRows, newOrganizations, totalWebsites, eventCount, paidSubscriptionRows] = await Promise.all([
       prisma.user.count(),
       prisma.auditLog.groupBy({ by: ["userId"], where: { ...activityWhere, action: "auth.sign_in", userId: { not: null } } }),
       prisma.user.count({ where: { createdAt: activityWhere.createdAt } }),
       prisma.organization.count(),
       prisma.trackingEvent.groupBy({ by: ["websiteId"], where: { occurredAt: { gte: range.from, lt: range.to } } }),
       prisma.organization.count({ where: { createdAt: activityWhere.createdAt } }),
-      prisma.organization.count({ where: { plan: "FREE" } }),
-      prisma.organization.count({ where: { plan: { not: "FREE" } } }),
       prisma.website.count(),
       prisma.trackingEvent.count({ where: { occurredAt: { gte: range.from, lt: range.to } } }),
+      prisma.subscription.findMany({ where: { status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIALING] } }, select: { organizationId: true } }),
     ]);
     const activeWebsiteIds = [...new Set(activeOrganizationRows.map((row) => row.websiteId))];
     const activeWebsites = activeWebsiteIds.length ? await prisma.website.findMany({ where: { id: { in: activeWebsiteIds } }, select: { organizationId: true } }) : [];
     const activeOrganizations = new Set(activeWebsites.map((website) => website.organizationId));
+    const paidOrganizations = new Set(paidSubscriptionRows.map((subscription) => subscription.organizationId));
     await writeAuditLog({ userId: request.platformAdminId, action: "admin.overview_viewed", entityType: "platform_admin", metadata: { from: range.from.toISOString(), to: range.to.toISOString() }, ipAddress: request.ip });
     response.json({ overview: {
       range: { from: range.from.toISOString(), to: range.to.toISOString() },
       users: { total: totalUsers, active: activeUserRows.length, new: newUsers },
-      organizations: { total: totalOrganizations, active: activeOrganizations.size, free: freeOrganizations, paid: paidOrganizations, new: newOrganizations },
+      organizations: { total: totalOrganizations, active: activeOrganizations.size, free: Math.max(totalOrganizations - paidOrganizations.size, 0), paid: paidOrganizations.size, new: newOrganizations },
       websites: { total: totalWebsites },
       events: { total: eventCount },
     } });
   } catch (error) {
     console.error("Admin overview failed", error);
     response.status(500).json({ error: "ADMIN_OVERVIEW_FAILED" });
+  }
+});
+
+adminRouter.get("/billing", async (request, response) => {
+  try {
+    const [statusCounts, subscriptions, recentEvents] = await Promise.all([
+      prisma.subscription.groupBy({ by: ["status"], _count: { _all: true } }),
+      prisma.subscription.findMany({ orderBy: { updatedAt: "desc" }, take: 100, select: { id: true, organizationId: true, provider: true, providerCustomerId: true, providerSubscriptionId: true, plan: true, status: true, currentPeriodEnd: true, cancelAtPeriodEnd: true, updatedAt: true, organization: { select: { name: true, owner: { select: { email: true } } } } } }),
+      prisma.billingEvent.findMany({ orderBy: { receivedAt: "desc" }, take: 50, select: { id: true, provider: true, providerEventId: true, eventType: true, status: true, receivedAt: true, processedAt: true } }),
+    ]);
+    await writeAuditLog({ userId: request.platformAdminId, action: "admin.billing_viewed", entityType: "subscription", ipAddress: request.ip });
+    response.json({ billing: { statusCounts: statusCounts.map((row) => ({ status: row.status, count: row._count._all })), subscriptions, recentEvents } });
+  } catch (error) {
+    console.error("Admin billing report failed", error);
+    response.status(500).json({ error: "ADMIN_BILLING_FETCH_FAILED" });
   }
 });
 
