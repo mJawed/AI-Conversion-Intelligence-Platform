@@ -1,4 +1,4 @@
-import { OrganizationStatus, Prisma, SubscriptionStatus } from "@prisma/client";
+import { OrganizationStatus, Prisma, PrivacyRequestType, SubscriptionStatus } from "@prisma/client";
 import { Router as ExpressRouter } from "express";
 import { z } from "zod";
 import { requireAuth } from "./auth-routes";
@@ -239,9 +239,15 @@ adminRouter.patch("/privacy-requests/:requestId", async (request, response) => {
   const parsed = z.object({ status: z.enum(["PROCESSING", "COMPLETED", "REJECTED"]), reason: z.string().trim().min(5).max(500) }).safeParse(request.body);
   if (!requestId || !parsed.success) { response.status(400).json({ error: "INVALID_PRIVACY_UPDATE", details: parsed.success ? undefined : parsed.error.flatten() }); return; }
   try {
-    const current = await prisma.privacyRequest.findUnique({ where: { id: requestId }, select: { id: true, status: true, organizationId: true } });
+    const current = await prisma.privacyRequest.findUnique({ where: { id: requestId }, select: { id: true, status: true, type: true, organizationId: true } });
     if (!current) { response.status(404).json({ error: "PRIVACY_REQUEST_NOT_FOUND" }); return; }
     const updated = await prisma.$transaction(async (transaction) => {
+      if (parsed.data.status === "COMPLETED" && current.type === PrivacyRequestType.DELETE) {
+        await transaction.trackingEvent.deleteMany({ where: { website: { organizationId: current.organizationId } } });
+        await transaction.privacyConsent.deleteMany({ where: { website: { organizationId: current.organizationId } } });
+        await transaction.insight.deleteMany({ where: { organizationId: current.organizationId } });
+        await transaction.funnel.deleteMany({ where: { organizationId: current.organizationId } });
+      }
       const result = await transaction.privacyRequest.update({ where: { id: requestId }, data: { status: parsed.data.status, completedAt: parsed.data.status === "COMPLETED" || parsed.data.status === "REJECTED" ? new Date() : null } });
       await transaction.auditLog.create({ data: { userId: request.platformAdminId, organizationId: current.organizationId, action: "admin.privacy_request_updated", entityType: "privacy_request", entityId: requestId, metadata: { reason: parsed.data.reason, previousStatus: current.status, nextStatus: parsed.data.status }, ipAddress: request.ip } });
       return result;

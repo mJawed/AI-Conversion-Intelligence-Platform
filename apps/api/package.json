@@ -32,6 +32,7 @@
     "clickhouse:schema": "node ../../scripts/apply-clickhouse-schema.mjs",
     "db:seed": "tsx ../../prisma/seed.ts",
     "db:cleanup:events": "tsx src/cleanup-events.ts",
+    "privacy:process": "tsx src/privacy-processor.ts",
     "admin:grant": "tsx src/platform-admin-cli.ts grant",
     "admin:revoke": "tsx src/platform-admin-cli.ts revoke"
   },

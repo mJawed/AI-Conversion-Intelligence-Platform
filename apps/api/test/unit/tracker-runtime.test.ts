@@ -93,8 +93,9 @@ test("consent mode stays silent until consent is granted and respects opt-out", 
   assert.equal(context.window.aiGrowth.hasConsent(), false);
   context.window.aiGrowth.grantConsent();
   context.window.aiGrowth.flush();
-  assert.equal(beacons.length, 2);
+  assert.equal(beacons.length, 3);
+  assert.equal(beacons.filter((event) => event.eventType === "custom").length, 1);
   context.window.aiGrowth.optOut();
   context.window.aiGrowth.conversion({ goal: "blocked" });
-  assert.equal(beacons.length, 2);
+  assert.equal(beacons.length, 3);
 });

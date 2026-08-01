@@ -9,7 +9,8 @@ async function main() {
   const retentionDays = getEventRetentionDays();
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
   const result = await prisma.trackingEvent.deleteMany({ where: { occurredAt: { lt: cutoff } } });
-  console.log(`Deleted ${result.count} tracking events older than ${retentionDays} days.`);
+  const consentResult = await prisma.privacyConsent.deleteMany({ where: { occurredAt: { lt: cutoff } } });
+  console.log(`Deleted ${result.count} tracking events and ${consentResult.count} consent records older than ${retentionDays} days.`);
 }
 
 main().catch((error) => {

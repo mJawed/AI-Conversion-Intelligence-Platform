@@ -182,6 +182,9 @@ collectorRouter.post("/", async (request: Request, response: Response) => {
       response.json({ accepted: true, duplicate: true, eventId: input.eventId });
       return;
     }
+    if (input.eventType === "custom" && input.properties.eventName === "consent_granted") {
+      await prisma.privacyConsent.upsert({ where: { websiteId_visitorId: { websiteId: website.id, visitorId: input.visitorId } }, create: { websiteId: website.id, visitorId: input.visitorId, status: "GRANTED", source: "tracker", occurredAt: input.occurredAt ?? new Date() }, update: { status: "GRANTED", occurredAt: input.occurredAt ?? new Date() } });
+    }
     await recordTrackingEvent(website.id);
     response.status(202).json({ accepted: true, duplicate: false, firstEvent, eventId: input.eventId, websiteId: website.id, event: maskedEvent });
   } catch (error) {

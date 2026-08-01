@@ -148,6 +148,7 @@ model Website {
   trackingEvents     TrackingEvent[]
   funnels            Funnel[]
   insights           Insight[]
+  consentRecords     PrivacyConsent[]
 
   @@index([organizationId])
   @@index([domain])
@@ -216,6 +217,21 @@ model Insight {
   @@index([organizationId, status, updatedAt])
   @@index([websiteId, category, severity])
   @@map("insights")
+}
+
+model PrivacyConsent {
+  id         String   @id @default(uuid()) @db.Uuid
+  websiteId  String   @map("website_id") @db.Uuid
+  visitorId  String   @map("visitor_id")
+  status     String
+  source     String
+  occurredAt DateTime @map("occurred_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  website    Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, visitorId])
+  @@index([websiteId, occurredAt])
+  @@map("privacy_consents")
 }
 
 model TrackingEvent {

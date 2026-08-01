@@ -211,7 +211,7 @@ const trackerSource = String.raw`(function () {
   window.aiGrowth.conversion = function (properties) { enqueue("conversion", properties); };
   window.aiGrowth.flush = flush;
   window.aiGrowth.hasConsent = function () { return !requireConsent || readStorage(window.localStorage, consentKey) === "granted"; };
-  window.aiGrowth.grantConsent = function () { writeStorage(window.localStorage, consentKey, "granted"); removeStorage(window.localStorage, optOutKey); startTracking(); };
+  window.aiGrowth.grantConsent = function () { writeStorage(window.localStorage, consentKey, "granted"); removeStorage(window.localStorage, optOutKey); startTracking(); enqueue("custom", { eventName: "consent_granted" }); };
   window.aiGrowth.denyConsent = function () { writeStorage(window.localStorage, consentKey, "denied"); window.aiGrowth.optOut(); };
   window.aiGrowth.optOut = function () { writeStorage(window.localStorage, optOutKey, "1"); clearQueuedEvents(); };
   window.aiGrowth.optIn = function () { removeStorage(window.localStorage, optOutKey); if (!requireConsent) startTracking(); };
