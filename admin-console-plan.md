@@ -226,3 +226,20 @@ Implemented the protected admin overview API:
 
 The paid count currently uses the existing server-side organization plan field;
 provider-confirmed billing state is scheduled for Phase 6.
+
+## Execution note — Phase 3
+
+**Status:** Completed.
+
+Implemented the protected customer directory API:
+
+- Added `GET /api/v1/admin/customers` with search, plan/status filters, and
+  bounded pagination.
+- Added search across organization name/slug, owner/member email/name, and
+  website domain.
+- Added owner, member count, website count, plan, status, and last-activity
+  summaries.
+- Added `GET /api/v1/admin/customers/:organizationId` with members, websites,
+  usage event count, and last activity.
+- Added audit events for customer list and detail views.
+- Verified API build and all unit tests.
