@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>AI Growth tracker installation fixture</title>
+    <!-- Replace the value with a real website tracking ID during local testing. -->
+    <script async src="http://localhost:4000/tracker.js" data-tracking-id="trk_12345678"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Tracker installation fixture</h1>
+      <a id="fixture-cta" href="/signup">Start signup</a>
+      <form id="fixture-form" action="/signup" method="post">
+        <input aria-label="Name">
+        <button type="submit">Continue</button>
+      </form>
+      <button type="button" onclick="window.aiGrowth.conversion({ goal: 'fixture' })">Record conversion</button>
+    </main>
+  </body>
+</html>
