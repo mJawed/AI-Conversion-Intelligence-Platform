@@ -222,7 +222,7 @@ websiteRouter.post("/:websiteId/verify", requireOrganizationRole("OWNER", "ADMIN
   }
 });
 
-websiteRouter.patch("/:websiteId", requireOrganizationRole("OWNER", "ADMIN", "DEVELOPER"), async (request, response) => {
+websiteRouter.patch("/:websiteId", requireOrganizationRole("OWNER", "ADMIN", "DEVELOPER"), async (request: Request, response: Response) => {
   const input = validate(websiteUpdateSchema, request.body, response) as z.infer<typeof websiteUpdateSchema> | null;
   if (!input) return;
   let domain: string | undefined;
@@ -253,7 +253,7 @@ websiteRouter.patch("/:websiteId", requireOrganizationRole("OWNER", "ADMIN", "DE
   }
 });
 
-websiteRouter.post("/:websiteId/pause", requireOrganizationRole("OWNER", "ADMIN", "DEVELOPER"), async (request, response) => {
+websiteRouter.post("/:websiteId/pause", requireOrganizationRole("OWNER", "ADMIN", "DEVELOPER"), async (request: Request, response: Response) => {
   try {
     const existing = await findWebsite(request);
     if (!existing) {
@@ -272,7 +272,7 @@ websiteRouter.post("/:websiteId/pause", requireOrganizationRole("OWNER", "ADMIN"
   }
 });
 
-websiteRouter.post("/:websiteId/archive", requireOrganizationRole("OWNER", "ADMIN"), async (request, response) => {
+websiteRouter.post("/:websiteId/archive", requireOrganizationRole("OWNER", "ADMIN"), async (request: Request, response: Response) => {
   try {
     const existing = await findWebsite(request);
     if (!existing) {
@@ -287,7 +287,7 @@ websiteRouter.post("/:websiteId/archive", requireOrganizationRole("OWNER", "ADMI
   }
 });
 
-websiteRouter.delete("/:websiteId", requireOrganizationRole("OWNER", "ADMIN"), async (request, response) => {
+websiteRouter.delete("/:websiteId", requireOrganizationRole("OWNER", "ADMIN"), async (request: Request, response: Response) => {
   try {
     const existing = await findWebsite(request);
     if (!existing) {
