@@ -83,7 +83,7 @@ export type AdminOverview = { range: { from: string; to: string }; users: { tota
 export type AdminCustomer = { id: string; name: string; slug: string; plan: string; status: string; createdAt: string; updatedAt: string; owner: { id: string; name: string | null; email: string }; memberCount: number; websiteCount: number; lastActivityAt: string | null };
 export type AdminCustomerDetail = { id: string; name: string; slug: string; plan: string; status: string; createdAt: string; updatedAt: string; owner: { id: string; name: string | null; email: string; createdAt: string }; members: Array<{ id: string; role: string; createdAt: string; user: { id: string; name: string | null; email: string; createdAt: string } }>; websites: Array<{ id: string; name: string; domain: string; trackingId: string; status: string; installationStatus: string; createdAt: string; lastEventAt: string | null }>; usage: { events: number; lastActivityAt: string | null } };
 export type AdminUsage = { range: { from: string; to: string }; daily: Array<{ day: string; events: number; visitors: number; sessions: number; warning: boolean }>; organizations: Array<{ organization_id: string; organization_name: string; plan: string; events: number; visitors: number; sessions: number }>; apiActivity: Array<{ day: string; audit_events: number }>; storage: { trackingEventsBytes: number }; thresholds: { dailyEventLimit: number; dailyEventWarningAt: number; eventRetentionDays: number } };
-export type AdminBilling = { statusCounts: Array<{ status: string; _count: { _all: number } }>; subscriptions: Array<{ id: string; provider: string; plan: string; status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean; organization: { id: string; name: string; owner: { email: string } } }>; recentEvents: Array<{ id: string; provider: string; providerEventId: string; eventType: string; status: string; receivedAt: string; processedAt: string | null }> };
+export type AdminBilling = { statusCounts: Array<{ status: string; count: number }>; subscriptions: Array<{ id: string; provider: string; plan: string; status: string; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean; organization: { id: string; name: string; owner: { email: string } } }>; recentEvents: Array<{ id: string; provider: string; providerEventId: string; eventType: string; status: string; receivedAt: string; processedAt: string | null }> };
 
 export function login(email: string, password: string) {
   return apiRequest<AuthResponse>("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
@@ -130,6 +130,10 @@ export function getAdminCustomers(accessToken: string, query: { q?: string; plan
 
 export function getAdminCustomer(accessToken: string, organizationId: string) {
   return authenticatedRequest<{ customer: AdminCustomerDetail }>(`/api/v1/admin/customers/${organizationId}`, accessToken);
+}
+
+export function updateAdminCustomerStatus(accessToken: string, organizationId: string, status: "ACTIVE" | "SUSPENDED", reason: string) {
+  return authenticatedRequest<{ organization: { id: string; name: string; status: string; updatedAt: string } }>(`/api/v1/admin/customers/${organizationId}/status`, accessToken, { method: "PATCH", body: JSON.stringify({ status, reason }) });
 }
 
 export function getAdminUsage(accessToken: string, query?: { organizationId?: string; from?: string; to?: string }) {
