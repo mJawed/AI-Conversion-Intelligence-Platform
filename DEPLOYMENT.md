@@ -61,6 +61,9 @@ create a Blueprint from the repository and provide the four `sync: false`
 values. Use the deployed dashboard URL as `CORS_ORIGINS` and the deployed API
 URL as `NEXT_PUBLIC_API_URL`.
 
+Set `NEXT_PUBLIC_USE_MOCK_DATA=false` for the dashboard so deployed routes use
+the live API and require authentication.
+
 The API uses Render's `PORT` value automatically, runs Prisma migrations before
 starting the API, and exposes `/health` for the service health check. Free web
 services can sleep when idle, so the first request after inactivity may be
