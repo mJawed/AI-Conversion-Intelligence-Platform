@@ -61,6 +61,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   auditLogs           AuditLog[]           @relation("AuditLogUser")
   privacyRequests     PrivacyRequest[]
+  platformAdmin       PlatformAdmin?
 
   @@map("users")
 }
@@ -160,6 +161,17 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("password_reset_tokens")
+}
+
+model PlatformAdmin {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @unique @map("user_id") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+  revokedAt DateTime? @map("revoked_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([revokedAt])
+  @@map("platform_admins")
 }
 
 model RefreshToken {

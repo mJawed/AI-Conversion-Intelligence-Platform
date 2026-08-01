@@ -1,6 +1,8 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { authenticateAccessToken, forgotPasswordSchema, getUserById, loginSchema, loginUser, refreshSchema, refreshUser, registerSchema, registerUser, requestPasswordReset, resetPassword, resetPasswordSchema, revokeRefreshToken } from "./auth";
 import { authRateLimit } from "./security";
+import { isPlatformAdmin } from "./admin-auth";
+import { writeAuditLog } from "./audit";
 
 declare global { namespace Express { interface Request { authUserId?: string } } }
 
@@ -27,7 +29,11 @@ authRouter.post("/register", authRateLimit, async (request, response) => {
 authRouter.post("/login", authRateLimit, async (request, response) => {
   const input = validate(loginSchema, request.body, response) as Parameters<typeof loginUser>[0] | null;
   if (!input) return;
-  try { response.json(await loginUser(input)); } catch (error) { if (error instanceof Error && error.message === "INVALID_CREDENTIALS") response.status(401).json({ error: "INVALID_CREDENTIALS" }); else response.status(500).json({ error: "LOGIN_FAILED" }); }
+  try {
+    const result = await loginUser(input);
+    if (await isPlatformAdmin(result.user.id)) void writeAuditLog({ userId: result.user.id, action: "admin.sign_in", entityType: "platform_admin", ipAddress: request.ip });
+    response.json(result);
+  } catch (error) { if (error instanceof Error && error.message === "INVALID_CREDENTIALS") response.status(401).json({ error: "INVALID_CREDENTIALS" }); else response.status(500).json({ error: "LOGIN_FAILED" }); }
 });
 
 authRouter.post("/forgot-password", authRateLimit, async (request, response) => {
