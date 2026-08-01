@@ -265,6 +265,25 @@ URL without a platform-admin record.
 The paid count currently uses the existing server-side organization plan field;
 provider-confirmed billing state is scheduled for Phase 6.
 
+## Execution note — Phase 7
+
+**Status:** Completed.
+
+Implemented administrative actions and hardening:
+
+- Added protected suspend/reactivate actions for organizations with a required
+  reason and transactional audit records.
+- Added admin privacy-request listing and status controls for processing,
+  completion, and rejection.
+- Added filterable, bounded admin audit-log queries with CSV export.
+- Added the admin-console UI controls for customer suspension and reactivation.
+- Ensured mutations are server-authorized, reasoned, and auditable.
+- Verified API typecheck/build, unit tests, dashboard build, and diff hygiene.
+
+Data deletion remains an explicitly controlled privacy workflow: this phase
+records and manages requests, but does not perform irreversible deletion from a
+dashboard click.
+
 ## Execution note — Phase 6
 
 **Status:** Completed.
