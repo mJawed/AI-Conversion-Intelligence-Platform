@@ -72,6 +72,9 @@ export type Organization = { id: string; name: string; slug: string; plan: strin
 export type ApiWebsite = { id: string; organizationId: string; name: string; domain: string; trackingId: string; timezone: string; currency: string; industry: string | null; status: "ACTIVE" | "PAUSED" | "ARCHIVED"; installationStatus: "NOT_INSTALLED" | "INSTALLED" | "VERIFIED"; trackingVerifiedAt: string | null; firstEventAt: string | null; lastEventAt: string | null; createdAt: string; updatedAt: string };
 
 export type AuthResponse = { user: AuthUser; tokens: AuthTokens };
+export type ApiKey = { id: string; name: string; keyPrefix: string; lastUsedAt: string | null; revokedAt: string | null; createdAt: string };
+export type PrivacyRequest = { id: string; type: "EXPORT" | "DELETE"; status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED"; createdAt: string; completedAt: string | null };
+export type AuditLog = { id: string; action: string; entityType: string; entityId: string | null; metadata: unknown; createdAt: string };
 
 export function login(email: string, password: string) {
   return apiRequest<AuthResponse>("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
@@ -110,9 +113,17 @@ export function updateWebsite(accessToken: string, organizationId: string, websi
 }
 
 export function getTrackingScript(accessToken: string, organizationId: string, websiteId: string) {
-  return authenticatedRequest<{ tracking: { trackingId: string; scriptUrl: string; installationStatus: ApiWebsite["installationStatus"]; verifiedAt: string | null; firstEventAt: string | null; snippet: string } }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/tracking-script`, accessToken);
+  return authenticatedRequest<{ tracking: { trackingId: string; scriptUrl: string; websiteStatus: ApiWebsite["status"]; installationStatus: ApiWebsite["installationStatus"]; verifiedAt: string | null; firstEventAt: string | null; snippet: string } }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/tracking-script`, accessToken);
 }
 
 export function verifyTracking(accessToken: string, organizationId: string, websiteId: string, domain?: string) {
   return authenticatedRequest<{ verified: boolean; status: string; installationStatus: ApiWebsite["installationStatus"]; firstEventAt?: string | null; message?: string }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/verify`, accessToken, { method: "POST", body: JSON.stringify(domain ? { domain } : {}) });
 }
+
+export function getApiKeys(accessToken: string, organizationId: string) { return authenticatedRequest<{ apiKeys: ApiKey[] }>(`/api/v1/organizations/${organizationId}/api-keys`, accessToken); }
+export function createApiKey(accessToken: string, organizationId: string, name: string) { return authenticatedRequest<{ apiKey: ApiKey; secret: string; warning: string }>(`/api/v1/organizations/${organizationId}/api-keys`, accessToken, { method: "POST", body: JSON.stringify({ name }) }); }
+export function revokeApiKey(accessToken: string, organizationId: string, apiKeyId: string) { return authenticatedRequest<void>(`/api/v1/organizations/${organizationId}/api-keys/${apiKeyId}`, accessToken, { method: "DELETE" }); }
+export function getAuditLogs(accessToken: string, organizationId: string) { return authenticatedRequest<{ auditLogs: AuditLog[] }>(`/api/v1/organizations/${organizationId}/audit-logs`, accessToken); }
+export function exportOrganizationData(accessToken: string, organizationId: string) { return authenticatedRequest<{ exportedAt: string; data: unknown }>(`/api/v1/privacy/export?organizationId=${encodeURIComponent(organizationId)}`, accessToken); }
+export function getPrivacyRequests(accessToken: string, organizationId: string) { return authenticatedRequest<{ requests: PrivacyRequest[] }>(`/api/v1/privacy/requests?organizationId=${encodeURIComponent(organizationId)}`, accessToken); }
+export function createPrivacyRequest(accessToken: string, organizationId: string, type: "EXPORT" | "DELETE") { return authenticatedRequest<{ request: PrivacyRequest }>("/api/v1/privacy/requests", accessToken, { method: "POST", body: JSON.stringify({ organizationId, type }) }); }
