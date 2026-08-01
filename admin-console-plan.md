@@ -224,6 +224,25 @@ Implemented the protected admin overview API:
 - Verified unauthenticated requests receive `401`.
 - Verified API build and all unit tests.
 
+## Execution note — Phase 4
+
+**Status:** Completed.
+
+Implemented the protected usage reporting API:
+
+- Added `GET /api/v1/admin/usage` with bounded date ranges and optional
+  organization filtering.
+- Added daily event, unique visitor, and session trends.
+- Added organization-level event, visitor, and session usage rankings.
+- Added recorded audit-activity trends for operational activity visibility.
+- Added PostgreSQL tracking-event table size reporting.
+- Added free-MVP event thresholds, warning flags, and retention settings.
+- Added admin usage-view audit events.
+- Verified API build and all unit tests.
+
+The API activity metric currently reports persisted audit activity; request-level
+telemetry and rate-limit history can be expanded in a later operational phase.
+
 The paid count currently uses the existing server-side organization plan field;
 provider-confirmed billing state is scheduled for Phase 6.
 
