@@ -29,6 +29,7 @@ export async function apiRequest<T>(path: string, options?: RequestInit): Promis
         INVALID_REFRESH_TOKEN: "Your session has expired. Please sign in again.",
         INVALID_PASSWORD_RESET_TOKEN: "That reset link is invalid or has expired. Request a new one.",
         PASSWORD_RESET_FAILED: "We could not reset your password. Please try again.",
+        PLATFORM_ADMIN_ACCESS_DENIED: "This account does not have platform administrator access.",
         INVALID_DOMAIN: "Enter a domain such as example.com without a page path.",
         DOMAIN_MISMATCH: "The verification domain does not match this website.",
         WEBSITE_CREATE_FAILED: "Could not create the website. Please try again.",
@@ -78,6 +79,10 @@ export type PasswordResetResponse = { message: string; resetToken?: string; rese
 export type ApiKey = { id: string; name: string; keyPrefix: string; lastUsedAt: string | null; revokedAt: string | null; createdAt: string };
 export type PrivacyRequest = { id: string; type: "EXPORT" | "DELETE"; status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED"; createdAt: string; completedAt: string | null };
 export type AuditLog = { id: string; action: string; entityType: string; entityId: string | null; metadata: unknown; createdAt: string };
+export type AdminOverview = { range: { from: string; to: string }; users: { total: number; active: number; new: number }; organizations: { total: number; active: number; free: number; paid: number; new: number }; websites: { total: number }; events: { total: number } };
+export type AdminCustomer = { id: string; name: string; slug: string; plan: string; status: string; createdAt: string; updatedAt: string; owner: { id: string; name: string | null; email: string }; memberCount: number; websiteCount: number; lastActivityAt: string | null };
+export type AdminCustomerDetail = { id: string; name: string; slug: string; plan: string; status: string; createdAt: string; updatedAt: string; owner: { id: string; name: string | null; email: string; createdAt: string }; members: Array<{ id: string; role: string; createdAt: string; user: { id: string; name: string | null; email: string; createdAt: string } }>; websites: Array<{ id: string; name: string; domain: string; trackingId: string; status: string; installationStatus: string; createdAt: string; lastEventAt: string | null }>; usage: { events: number; lastActivityAt: string | null } };
+export type AdminUsage = { range: { from: string; to: string }; daily: Array<{ day: string; events: number; visitors: number; sessions: number; warning: boolean }>; organizations: Array<{ organization_id: string; organization_name: string; plan: string; events: number; visitors: number; sessions: number }>; apiActivity: Array<{ day: string; audit_events: number }>; storage: { trackingEventsBytes: number }; thresholds: { dailyEventLimit: number; dailyEventWarningAt: number; eventRetentionDays: number } };
 
 export function login(email: string, password: string) {
   return apiRequest<AuthResponse>("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
@@ -105,6 +110,30 @@ export function logout(refreshToken: string) {
 
 export function getCurrentUser(accessToken: string) {
   return authenticatedRequest<{ user: AuthUser }>("/api/v1/auth/me", accessToken);
+}
+
+export function getAdminAccess(accessToken: string) {
+  return authenticatedRequest<{ admin: { userId: string; access: "platform" } }>("/api/v1/admin/access", accessToken);
+}
+
+export function getAdminOverview(accessToken: string, query?: { from?: string; to?: string }) {
+  const search = query ? `?${new URLSearchParams(query).toString()}` : "";
+  return authenticatedRequest<{ overview: AdminOverview }>(`/api/v1/admin/overview${search}`, accessToken);
+}
+
+export function getAdminCustomers(accessToken: string, query: { q?: string; plan?: string; status?: string; page?: number; limit?: number }) {
+  const search = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => { if (value !== undefined && value !== "") search.set(key, String(value)); });
+  return authenticatedRequest<{ customers: AdminCustomer[]; pagination: { page: number; limit: number; total: number; totalPages: number } }>(`/api/v1/admin/customers?${search.toString()}`, accessToken);
+}
+
+export function getAdminCustomer(accessToken: string, organizationId: string) {
+  return authenticatedRequest<{ customer: AdminCustomerDetail }>(`/api/v1/admin/customers/${organizationId}`, accessToken);
+}
+
+export function getAdminUsage(accessToken: string, query?: { organizationId?: string; from?: string; to?: string }) {
+  const search = query ? `?${new URLSearchParams(query).toString()}` : "";
+  return authenticatedRequest<{ usage: AdminUsage }>(`/api/v1/admin/usage${search}`, accessToken);
 }
 
 export function getOrganizations(accessToken: string) {
