@@ -1384,7 +1384,8 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added `render.yaml` with free API and dashboard web services.
 - Added API production compilation and start scripts, including Render `PORT`
   support.
-- Added a Render pre-deploy Prisma migration command.
+- Added a Render startup Prisma migration command compatible with free-tier
+  services.
 - Updated deployment guidance for Neon + PostgreSQL-only free MVP hosting.
 - Documented public URL, CORS, secret, health-check, and sleep/wake setup.
 

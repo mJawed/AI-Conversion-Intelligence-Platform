@@ -4,8 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm ci && npm run db:generate --workspace @ai-growth/api && npm run build --workspace @ai-growth/api
-    preDeployCommand: npm run db:migrate:deploy --workspace @ai-growth/api
-    startCommand: npm run start --workspace @ai-growth/api
+    startCommand: npm run db:migrate:deploy --workspace @ai-growth/api && npm run start --workspace @ai-growth/api
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
