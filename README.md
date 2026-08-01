@@ -39,12 +39,13 @@ npm test
 
 Production checks are grouped under `npm run ci`. Deployment and service configuration are documented in [DEPLOYMENT.md](DEPLOYMENT.md).
 
+Tracking SDK installation, supported events, consent controls, and local testing are documented in [TRACKING-SDK.md](TRACKING-SDK.md).
+
 Start local infrastructure when needed:
 
 ```bash
 docker compose up -d
 ```
 
-The current foundation provides a runnable shell, health endpoint, and initial
-multi-tenant database model. Authentication, website management, tracking, and
-analytics are next milestones.
+The current foundation provides a runnable shell, health endpoint, authentication,
+website management, tracking SDK, and analytics integration foundation.

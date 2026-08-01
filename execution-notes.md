@@ -987,7 +987,6 @@ Phase 12 remains open until the four production services are provisioned, reacha
 
 - Dashboard ESLint: passed
 - Dashboard typecheck: passed
-- Dashboard production build: passed
 
 The remaining authentication work is password recovery and email verification, which depends on the corresponding backend workflows.
 
@@ -1122,3 +1121,193 @@ Live funnel persistence, conversion-goal storage, permissions enforcement, and f
 - Dashboard production build: passed
 
 AI generation, persisted insight lifecycle, deduplication, provider controls, and evidence-backed insight storage remain backend Phase 17 work.
+
+## Frontend Phase 8 — Settings, privacy, and account operations
+
+**Status:** Complete as an account operations foundation
+
+### Completed
+
+- Added API-key management with live list, create, revoke, role-aware controls, and one-time secret display.
+- Added organization data export download and privacy export/deletion request flows.
+- Added request confirmation for destructive deletion actions and request history.
+- Added organization audit-log viewer.
+- Added privacy, retention, and secret-handling explanations in Settings.
+- Added live loading, empty, error, and unavailable states while preserving mock-mode behavior.
+- Added authenticated API client methods for keys, privacy requests, exports, and audit logs.
+
+### Verification
+
+- Dashboard ESLint: passed
+- Dashboard typecheck: passed
+- Dashboard production build: passed
+
+Scheduled deletion execution, retention jobs, invitation management, billing operations, and legal-policy review remain backend/production operations work.
+
+## Frontend Phase 9 — Quality, accessibility, and production polish
+
+**Status:** Complete as a frontend quality and accessibility foundation
+
+### Started
+
+- Added global loading, error, and not-found boundaries with recovery actions.
+- Added a keyboard skip link and active-navigation semantics.
+- Added visible focus styles and reduced-motion support.
+- Added a lightweight dashboard route smoke-check script.
+- Added responsive safeguards for toolbar, settings, funnel, privacy, and account-operation controls.
+
+### Verification
+
+- Dashboard ESLint: passed
+- Dashboard typecheck: passed
+- Dashboard production build: passed
+- Dashboard browser-route smoke check: passed for `/`, `/login`, `/register`, and `/settings`
+
+The production build still reports two non-blocking existing Autoprefixer warnings for `align-items:end` and `justify-content:end`; these can be cleaned up during the CSS consolidation pass.
+
+## Tracking SDK Phase 1 — SDK runtime and `/tracker.js` serving
+
+**Status:** Complete as an initial browser SDK foundation
+
+### Completed
+
+- Added a dependency-free browser tracking SDK under the API workspace.
+- Added `GET /tracker.js` with JavaScript content type and short-lived cache headers.
+- Added anonymous visitor and tab session identifiers with safe storage fallbacks.
+- Added automatic `session_start` and `page_view` events.
+- Added privacy-safe URL/referrer normalization and limited context metadata.
+- Added `sendBeacon` delivery with a `fetch` keepalive fallback.
+- Added unit coverage for the tracker script contract.
+
+### Verification
+
+- API ESLint: passed
+- API typecheck: passed
+- API unit tests: passed (5 tests)
+- Local `/tracker.js` response check: passed with HTTP 200, JavaScript content type, cache headers, and cross-origin resource policy
+
+## Tracking SDK Phase 2 — Event capture and delivery
+
+**Status:** Complete as a browser event-capture foundation
+
+### Completed
+
+- Added queued event delivery with timed, size-based, and page-hide flushing.
+- Added SPA page-view tracking for `pushState`, `replaceState`, and `popstate`.
+- Added privacy-safe click metadata without visible text or input values.
+- Added scroll milestones at 25%, 50%, 75%, and 100%.
+- Added form-start and form-submit events without form values.
+- Added explicit `window.aiGrowth.track`, `conversion`, and `flush` methods.
+- Preserved the existing collector payload contract and added SDK hook tests.
+
+### Verification
+
+- API ESLint: passed
+- API typecheck: passed
+- API unit tests: passed (6 tests)
+- Tracker JavaScript syntax check: passed
+- Local `/tracker.js` Phase 2 response check: passed with HTTP 200 and all event-delivery hooks present
+
+## Tracking SDK Phase 3 — Consent and privacy safeguards
+
+**Status:** Complete as a browser privacy-control foundation
+
+### Completed
+
+- Added consent-gated tracking with `data-require-consent="true"`.
+- Added runtime consent and opt-out methods through `window.aiGrowth`.
+- Added persistent opt-out state and Do Not Track handling.
+- Added browser-side filtering for sensitive property names and values.
+- Preserved query-string and fragment removal for URLs and referrers.
+- Kept form values out of all browser-generated events.
+
+### Verification
+
+- API ESLint: passed
+- API typecheck: passed
+- API unit tests: passed (7 tests)
+- Tracker JavaScript syntax check: passed
+- Local `/tracker.js` Phase 3 response check: passed with HTTP 200 and consent/privacy controls present
+
+## Tracking SDK Phase 4 — Tracking verification integration
+
+**Status:** Complete as a tracking installation and verification foundation
+
+### Completed
+
+- Added explicit verification states for pending, verified, paused, and archived websites.
+- Added website status to tracking-script configuration responses.
+- Kept domain matching and invalid-domain protection active during verification.
+- Prevented paused and archived websites from reporting as connected.
+- Updated Settings installation UI with status-aware badges and verification controls.
+- Preserved the original first-event timestamp while updating later activity.
+- Added API contract coverage for all verification states.
+
+### Verification
+
+- API ESLint: passed
+- API typecheck: passed
+- API unit tests: passed (8 tests)
+- Dashboard ESLint: passed
+- Dashboard typecheck: passed
+- Dashboard production build: passed
+
+The dashboard build continues to report two existing non-blocking Autoprefixer warnings for `align-items:end` and `justify-content:end`.
+
+## Tracking SDK Phase 6 — Test coverage and browser validation
+
+**Status:** Complete as a local browser-validation foundation
+
+### Completed
+
+- Added a Node VM browser-runtime harness for SDK event behavior.
+- Covered baseline, click, form, scroll, conversion, SPA, consent, and opt-out flows.
+- Added a static installation fixture for manual local browser testing.
+- Added the `smoke:tracker` command for live `/tracker.js` route checks.
+- Kept the validation path dependency-free.
+
+### Verification
+
+- API ESLint: passed
+- API typecheck: passed
+- API unit tests: passed (12 tests)
+- Tracker runtime tests: passed
+- Tracker smoke check: passed against a fresh local API process
+
+## Tracking SDK Phase 5 — Persistence and analytics handoff
+
+**Status:** Complete as a persistence and analytics handoff foundation
+
+### Completed
+
+- Corrected SDK form metadata to use the `formId` key expected by analytics queries.
+- Centralized ClickHouse event-row mapping and preserved website/tracking identity.
+- Added contract coverage for ClickHouse field mapping and JSON serialization.
+- Preserved disabled-pipeline behavior for local development.
+- Preserved RabbitMQ retry and dead-letter handling for persistence failures.
+- Confirmed analytics authorization resolves organization membership and website ownership before querying event data.
+
+### Verification
+
+- API ESLint: passed
+- API typecheck: passed
+- API unit tests: passed (10 tests)
+- Dashboard ESLint: passed
+- Dashboard typecheck: passed
+
+## Tracking SDK Phase 7 — Documentation and handoff
+
+**Status:** Complete
+
+### Completed
+
+- Added `TRACKING-SDK.md` with installation, event, consent, privacy, local testing, and limitation guidance.
+- Linked the SDK documentation from the project README.
+- Updated Onboarding and Settings installation copy with consent instructions.
+- Documented the static local fixture and tracker smoke command.
+- Separated SDK completion from deployment and external-service provisioning.
+
+### Verification
+
+- Documentation links and commands reviewed against the current repository structure.
+- Local testing workflow documented without adding deployment dependencies.

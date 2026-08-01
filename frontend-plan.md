@@ -151,6 +151,8 @@ The remaining work is below.
 
 ## Frontend Phase 8 — Settings, privacy, and account operations
 
+**Status:** Complete as an account operations foundation
+
 ### Scope
 
 - Complete profile and organization settings.
@@ -167,6 +169,8 @@ The remaining work is below.
 - Organization permissions are respected.
 
 ## Frontend Phase 9 — Quality, accessibility, and production polish
+
+**Status:** Complete as a frontend quality and accessibility foundation
 
 ### Scope
 
