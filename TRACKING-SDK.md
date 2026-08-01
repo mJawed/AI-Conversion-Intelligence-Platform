@@ -102,7 +102,8 @@ API_BASE_URL=http://localhost:4000 npm run smoke:tracker --workspace @ai-growth/
 ## Current limitations
 
 - RabbitMQ, Redis, and ClickHouse are disabled by default in local development.
-- Full analytics persistence requires the external event pipeline services.
+- Free MVP analytics persistence uses PostgreSQL directly; the external event
+  pipeline services are optional and disabled by default.
 - Coordinate heatmaps require click coordinates, which are not collected yet.
 - Full screen replay storage and playback are not enabled.
 - Realtime visitors, field-level form analysis, AI generation, billing, and

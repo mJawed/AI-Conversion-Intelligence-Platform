@@ -1311,3 +1311,131 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 
 - Documentation links and commands reviewed against the current repository structure.
 - Local testing workflow documented without adding deployment dependencies.
+
+## Free Infrastructure Phase 1 — Free architecture and configuration
+
+**Status:** Complete as a configuration foundation
+
+### Completed
+
+- Added explicit `FREE_MVP_MODE` and PostgreSQL-first analytics configuration.
+- Added retention and maximum daily tracking-event settings with safe bounds.
+- Exposed infrastructure mode and limits through API metadata.
+- Made production environment validation optional for RabbitMQ, Redis, and ClickHouse in explicit free-MVP mode.
+- Added unit coverage for free-mode defaults and configuration bounds.
+
+### Verification
+
+- API ESLint: passed
+- API typecheck: passed
+- API unit tests: passed (13 tests)
+- Fresh API metadata check: passed with free MVP mode and PostgreSQL storage
+- Free-mode production environment validation: passed
+
+## Free Infrastructure Phase 2 — PostgreSQL event storage
+
+**Status:** Complete
+
+### Started
+
+- Added the Prisma `TrackingEvent` model with tenant, visitor, session, event-type, and retention indexes.
+- Added PostgreSQL event mapping and optional collector persistence.
+- Added duplicate-safe persistence using the website/event composite key.
+- Added the retention cleanup command `db:cleanup:events`.
+
+### Verification
+
+- Prisma format, validation, client generation, and migration status: passed
+- API ESLint and typecheck: passed
+- API unit tests: passed (14 tests)
+- Temporary API runtime with PostgreSQL storage enabled: passed
+- Live collector conversion event persisted and read back from Neon: passed
+- Retention cleanup command: passed; no events older than 30 days were removed
+
+## Free Infrastructure Phase 3 — PostgreSQL analytics queries
+
+**Status:** Complete
+
+### Completed
+
+- Replaced ClickHouse-only analytics reads with PostgreSQL aggregations.
+- Preserved the existing overview, visitors, sessions, forms, behaviour,
+  heatmaps, replays, and insights API contracts.
+- Added bounded date-range filtering and limit/offset pagination to the
+  PostgreSQL analytics queries.
+- Preserved explicit unavailable-state handling for analytics query failures.
+
+### Verification
+
+- API ESLint: passed
+- API typecheck: passed
+- API unit tests: passed (14 tests)
+- Live Neon analytics smoke test: passed for overview, visitors, sessions,
+  forms, behaviour, heatmaps, and replays
+- Conversion metrics, daily traffic, latest page, session conversion, and
+  pagination output verified against stored PostgreSQL event data
+
+## Free Infrastructure Phase 4 — Free hosting readiness
+
+**Status:** Complete
+
+### Completed
+
+- Added `render.yaml` with free API and dashboard web services.
+- Added API production compilation and start scripts, including Render `PORT`
+  support.
+- Added a Render pre-deploy Prisma migration command.
+- Updated deployment guidance for Neon + PostgreSQL-only free MVP hosting.
+- Documented public URL, CORS, secret, health-check, and sleep/wake setup.
+
+### Verification
+
+- API production build, typecheck, and lint: passed
+- Dashboard production build, typecheck, and lint: passed
+- Free-mode production environment validation: passed
+- Render Blueprint YAML parse: passed
+- Production API smoke test: `/health`, `/health/db`, `/ready`, and
+  `/tracker.js` all returned HTTP 200
+
+## Free Infrastructure Phase 5 — Free MVP end-to-end testing
+
+**Status:** Complete
+
+### Completed
+
+- Added `scripts/smoke-free-mvp.mjs` and the API workspace `smoke:free` command.
+- The smoke test checks API health/readiness, tracker delivery, PostgreSQL
+  free-mode metadata, dashboard routes, and persisted event rows.
+- Covered page-view, click, form-start, form-submit, and conversion events.
+- Documented environment overrides for testing deployed API/dashboard URLs.
+
+### Verification
+
+- Production API and dashboard artifacts started locally: passed
+- Free MVP smoke check: passed; 5 representative events persisted in Neon
+- Dashboard routes `/`, `/login`, `/register`, and `/settings`: passed
+- API `/health`, `/health/db`, `/ready`, and `/tracker.js`: passed
+- Existing browser SDK runtime and unit coverage remains passing
+
+## Free Infrastructure Phase 6 — Cost and scale decision
+
+**Status:** Complete
+
+### Completed
+
+- Added `scripts/report-free-usage.mjs` and the API workspace `report:free`
+  command.
+- Added read-only measurements for API health latency, event volume, database
+  size, tracking-table size, website count, retention coverage, and configured
+  free-tier limits.
+- Documented measurable triggers for adding distributed rate limiting, a queue,
+  or ClickHouse.
+
+### Verification
+
+- Usage report against Neon: passed
+- Current baseline: 11 events, 5 websites, 8.6 MB database, 114 KB event table
+- Retention coverage: 11 events within 30 days
+- PostgreSQL-only decision: retained for the current low-volume MVP
+- First health check latency: approximately 3.46 seconds, recorded as a
+  free-tier wake-up limitation to monitor

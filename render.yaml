@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: ai-growth-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run db:generate --workspace @ai-growth/api && npm run build --workspace @ai-growth/api
+    preDeployCommand: npm run db:migrate:deploy --workspace @ai-growth/api
+    startCommand: npm run start --workspace @ai-growth/api
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: FREE_MVP_MODE
+        value: "true"
+      - key: ANALYTICS_STORAGE
+        value: postgres
+      - key: POSTGRES_EVENT_STORAGE_ENABLED
+        value: "true"
+      - key: EVENT_PIPELINE_ENABLED
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+
+  - type: web
+    name: ai-growth-dashboard
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build --workspace @ai-growth/dashboard
+    startCommand: npm run start --workspace @ai-growth/dashboard
+    healthCheckPath: /login
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false

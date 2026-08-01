@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { eventSchema, maskUrl, maskValue, publicEventSummary } from "../../src/collector-routes";
+import { eventSchema, maskUrl, maskValue, publicEventSummary, toTrackingEventData } from "../../src/collector-routes";
 import { analyticsQuerySchema, normalizeAnalyticsQuery } from "../../src/analytics-service";
 import { encryptSecret } from "../../src/security";
 import { getTrackingVerificationStatus, normalizeDomain } from "../../src/website-routes";
 import { WebsiteStatus } from "@prisma/client";
 import { trackerScript } from "../../src/tracker";
 import { getPipelineMetrics, publishEvent, toClickHouseRow } from "../../src/event-pipeline";
+import { getInfrastructureConfig, getMaxTrackingEventsPerDay, getEventRetentionDays, getAnalyticsStorage, isFreeMvpMode } from "../../src/config";
 
 test("normalizes website domains and rejects paths", () => {
   assert.equal(normalizeDomain("https://WWW.Example.com/"), "www.example.com");
@@ -92,4 +93,28 @@ test("skips external publishing safely when the event pipeline is disabled", asy
   await publishEvent({ eventId: "evt_12345678", trackingId: "trk_12345678", websiteId: "website-1", eventType: "page_view", occurredAt: "2026-08-01T00:00:00.000Z", visitorId: "visitor-1", sessionId: "session-1", url: "https://example.com", referrer: null, properties: {}, context: {} });
   assert.equal(getPipelineMetrics().skipped, before + 1);
   if (previous === undefined) delete process.env.EVENT_PIPELINE_ENABLED; else process.env.EVENT_PIPELINE_ENABLED = previous;
+});
+
+test("uses safe free-MVP infrastructure defaults and bounded limits", () => {
+  const previous = { free: process.env.FREE_MVP_MODE, storage: process.env.ANALYTICS_STORAGE, retention: process.env.EVENT_RETENTION_DAYS, max: process.env.MAX_TRACKING_EVENTS_PER_DAY };
+  process.env.FREE_MVP_MODE = "true";
+  process.env.ANALYTICS_STORAGE = "postgres";
+  process.env.EVENT_RETENTION_DAYS = "999999";
+  process.env.MAX_TRACKING_EVENTS_PER_DAY = "0";
+  assert.equal(isFreeMvpMode(), true);
+  assert.equal(getAnalyticsStorage(), "postgres");
+  assert.equal(getEventRetentionDays(), 3650);
+  assert.equal(getMaxTrackingEventsPerDay(), 100000);
+  assert.equal(getInfrastructureConfig().freeMvpMode, true);
+  for (const [key, value] of Object.entries({ FREE_MVP_MODE: previous.free, ANALYTICS_STORAGE: previous.storage, EVENT_RETENTION_DAYS: previous.retention, MAX_TRACKING_EVENTS_PER_DAY: previous.max })) {
+    if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  }
+});
+
+test("maps privacy-safe pipeline events to PostgreSQL tracking records", () => {
+  const data = toTrackingEventData({ eventId: "evt_12345678", trackingId: "trk_12345678", websiteId: "website-1", eventType: "page_view", occurredAt: "2026-08-01T00:00:00.000Z", visitorId: "visitor-1", sessionId: "session-1", url: "https://example.com/home", referrer: null, properties: { cta: "Start" }, context: { language: "en-US" } });
+  assert.equal(data.websiteId, "website-1");
+  assert.equal(data.eventType, "page_view");
+  assert.equal(data.occurredAt.toISOString(), "2026-08-01T00:00:00.000Z");
+  assert.deepEqual(data.properties, { cta: "Start" });
 });

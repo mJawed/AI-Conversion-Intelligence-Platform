@@ -1,14 +1,13 @@
 import process from "node:process";
 
+const freeMvpMode = process.env.FREE_MVP_MODE === "true";
 const required = [
   "DATABASE_URL",
   "JWT_SECRET",
   "ENCRYPTION_KEY",
   "CORS_ORIGINS",
-  "RABBITMQ_URL",
-  "REDIS_URL",
-  "CLICKHOUSE_URL",
 ];
+if (!freeMvpMode) required.push("RABBITMQ_URL", "REDIS_URL", "CLICKHOUSE_URL");
 const placeholderPatterns = [
   /^replace-with/i,
   /^your-/i,
@@ -25,9 +24,10 @@ for (const name of required) {
 }
 
 if (process.env.NODE_ENV !== "production") failures.push("NODE_ENV must be production");
-if (process.env.EVENT_PIPELINE_ENABLED !== "true") failures.push("EVENT_PIPELINE_ENABLED must be true");
-if (process.env.REDIS_ENABLED !== "true") failures.push("REDIS_ENABLED must be true");
-if (process.env.CLICKHOUSE_ENABLED !== "true") failures.push("CLICKHOUSE_ENABLED must be true");
+if (!freeMvpMode && process.env.EVENT_PIPELINE_ENABLED !== "true") failures.push("EVENT_PIPELINE_ENABLED must be true");
+if (!freeMvpMode && process.env.REDIS_ENABLED !== "true") failures.push("REDIS_ENABLED must be true");
+if (!freeMvpMode && process.env.CLICKHOUSE_ENABLED !== "true") failures.push("CLICKHOUSE_ENABLED must be true");
+if (freeMvpMode && process.env.ANALYTICS_STORAGE === "clickhouse") failures.push("Free MVP mode must use ANALYTICS_STORAGE=postgres");
 
 const databaseUrl = process.env.DATABASE_URL ?? "";
 if (databaseUrl && !/^postgres(?:ql)?:\/\//.test(databaseUrl)) failures.push("DATABASE_URL must use postgresql:// or postgres://");

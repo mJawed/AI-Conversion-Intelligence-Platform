@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "./lib/prisma";
 
@@ -47,53 +48,50 @@ export async function authorizeAnalyticsContext(context: AnalyticsContext, userI
   return website;
 }
 
-function clickHouseBaseUrl() {
-  if (process.env.CLICKHOUSE_ENABLED !== "true") throw new AnalyticsUnavailableError("ClickHouse analytics is not enabled");
-  return process.env.CLICKHOUSE_URL ?? "http://localhost:8123";
-}
-
-async function queryClickHouse<T>(sql: string, parameters: Record<string, string | number>) {
-  const url = new URL("/", clickHouseBaseUrl());
-  url.searchParams.set("query", sql);
-  Object.entries(parameters).forEach(([key, value]) => url.searchParams.set(`param_${key}`, String(value)));
-  const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-  if (!response.ok) throw new AnalyticsUnavailableError(`ClickHouse returned ${response.status}`);
-  const payload = await response.json() as { data?: T[] };
-  return payload.data ?? [];
-}
-
 function eventWhere(context: AnalyticsContext) {
-  return "website_id = {websiteId:String} AND occurred_at >= parseDateTimeBestEffort({from:String}) AND occurred_at < parseDateTimeBestEffort({to:String})";
+  return Prisma.sql`website_id = ${context.websiteId}::uuid AND occurred_at >= ${new Date(context.from)} AND occurred_at < ${new Date(context.to)}`;
 }
 
-function parameters(context: AnalyticsContext) {
-  return { websiteId: context.websiteId, from: context.from, to: context.to, limit: context.limit, offset: context.offset };
+function pagination(context: AnalyticsContext) {
+  return Prisma.sql`LIMIT ${context.limit} OFFSET ${context.offset}`;
+}
+
+async function queryPostgres<T>(query: Prisma.Sql) {
+  try {
+    return await prisma.$queryRaw<T[]>(query);
+  } catch (error) {
+    console.error("PostgreSQL analytics query failed", error);
+    throw new AnalyticsUnavailableError("PostgreSQL analytics is unavailable");
+  }
+}
+
+function iso(value: Date | string) {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
 export async function getOverview(context: AnalyticsContext) {
   const where = eventWhere(context);
-  const params = parameters(context);
   const [metrics, topPages, traffic] = await Promise.all([
-    queryClickHouse<{ visitors: number; sessions: number; conversions: number; page_views: number }>(`SELECT uniqExact(visitor_id) AS visitors, uniqExact(session_id) AS sessions, countIf(event_type = 'conversion') AS conversions, countIf(event_type = 'page_view') AS page_views FROM ai_growth_events WHERE ${where} FORMAT JSON`, params),
-    queryClickHouse<{ path: string; visitors: number; share: number }>(`SELECT path, uniqExact(visitor_id) AS visitors, round(visitors / greatest((SELECT uniqExact(visitor_id) FROM ai_growth_events WHERE ${where}), 1) * 100, 1) AS share FROM (SELECT if(position(url, '/') > 0, substring(url, position(url, '/', 9)), '/') AS path, visitor_id FROM ai_growth_events WHERE ${where}) GROUP BY path ORDER BY visitors DESC LIMIT {limit:UInt32} OFFSET {offset:UInt32} FORMAT JSON`, params),
-    queryClickHouse<{ day: string; visitors: number }>(`SELECT toDate(occurred_at) AS day, uniqExact(visitor_id) AS visitors FROM ai_growth_events WHERE ${where} GROUP BY day ORDER BY day ASC FORMAT JSON`, params),
+    queryPostgres<{ visitors: number; sessions: number; conversions: number; page_views: number }>(Prisma.sql`SELECT COUNT(DISTINCT visitor_id)::int AS visitors, COUNT(DISTINCT session_id)::int AS sessions, COUNT(*) FILTER (WHERE event_type = 'conversion')::int AS conversions, COUNT(*) FILTER (WHERE event_type = 'page_view')::int AS page_views FROM tracking_events WHERE ${where}`),
+    queryPostgres<{ path: string; visitors: number; share: number }>(Prisma.sql`WITH scoped AS (SELECT split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) AS path, visitor_id FROM tracking_events WHERE ${where}), total AS (SELECT COUNT(DISTINCT visitor_id)::numeric AS visitors FROM scoped) SELECT scoped.path, COUNT(DISTINCT scoped.visitor_id)::int AS visitors, ROUND(COUNT(DISTINCT scoped.visitor_id)::numeric / GREATEST(total.visitors, 1) * 100, 1)::float AS share FROM scoped CROSS JOIN total GROUP BY scoped.path, total.visitors ORDER BY visitors DESC ${pagination(context)}`),
+    queryPostgres<{ day: string; visitors: number }>(Prisma.sql`SELECT TO_CHAR(DATE_TRUNC('day', occurred_at), 'YYYY-MM-DD') AS day, COUNT(DISTINCT visitor_id)::int AS visitors FROM tracking_events WHERE ${where} GROUP BY DATE_TRUNC('day', occurred_at) ORDER BY day ASC`),
   ]);
   const summary = metrics[0] ?? { visitors: 0, sessions: 0, conversions: 0, page_views: 0 };
   return { range: { from: context.from, to: context.to }, metrics: { ...summary, conversionRate: Number(summary.visitors) ? Number(((Number(summary.conversions) / Number(summary.visitors)) * 100).toFixed(2)) : 0 }, topPages, traffic };
 }
 
 export async function getVisitors(context: AnalyticsContext) {
-  const rows = await queryClickHouse<{ visitor_id: string; last_seen: string; sessions: number; events: number; conversions: number; current_page: string }>(`SELECT visitor_id, max(occurred_at) AS last_seen, uniqExact(session_id) AS sessions, count() AS events, countIf(event_type = 'conversion') AS conversions, argMax(url, occurred_at) AS current_page FROM ai_growth_events WHERE ${eventWhere(context)} GROUP BY visitor_id ORDER BY last_seen DESC LIMIT {limit:UInt32} OFFSET {offset:UInt32} FORMAT JSON`, parameters(context));
-  return { visitors: rows, pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
+  const rows = await queryPostgres<{ visitor_id: string; last_seen: Date; sessions: number; events: number; conversions: number; current_page: string }>(Prisma.sql`WITH grouped AS (SELECT visitor_id, MAX(occurred_at) AS last_seen, COUNT(DISTINCT session_id)::int AS sessions, COUNT(*)::int AS events, COUNT(*) FILTER (WHERE event_type = 'conversion')::int AS conversions FROM tracking_events WHERE ${eventWhere(context)} GROUP BY visitor_id), latest AS (SELECT DISTINCT ON (visitor_id) visitor_id, url AS current_page FROM tracking_events WHERE ${eventWhere(context)} ORDER BY visitor_id, occurred_at DESC) SELECT grouped.visitor_id, grouped.last_seen, grouped.sessions, grouped.events, grouped.conversions, latest.current_page FROM grouped JOIN latest USING (visitor_id) ORDER BY grouped.last_seen DESC ${pagination(context)}`);
+  return { visitors: rows.map((row) => ({ ...row, last_seen: iso(row.last_seen) })), pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
 }
 
 export async function getSessions(context: AnalyticsContext) {
-  const rows = await queryClickHouse<{ session_id: string; visitor_id: string; started_at: string; last_seen: string; events: number; pages: number; converted: number }>(`SELECT session_id, argMin(visitor_id, occurred_at) AS visitor_id, min(occurred_at) AS started_at, max(occurred_at) AS last_seen, count() AS events, uniqExact(url) AS pages, countIf(event_type = 'conversion') > 0 AS converted FROM ai_growth_events WHERE ${eventWhere(context)} GROUP BY session_id ORDER BY last_seen DESC LIMIT {limit:UInt32} OFFSET {offset:UInt32} FORMAT JSON`, parameters(context));
-  return { sessions: rows, pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
+  const rows = await queryPostgres<{ session_id: string; visitor_id: string; started_at: Date; last_seen: Date; events: number; pages: number; converted: boolean }>(Prisma.sql`SELECT session_id, (ARRAY_AGG(visitor_id ORDER BY occurred_at ASC))[1] AS visitor_id, MIN(occurred_at) AS started_at, MAX(occurred_at) AS last_seen, COUNT(*)::int AS events, COUNT(DISTINCT url)::int AS pages, (COUNT(*) FILTER (WHERE event_type = 'conversion') > 0) AS converted FROM tracking_events WHERE ${eventWhere(context)} GROUP BY session_id ORDER BY last_seen DESC ${pagination(context)}`);
+  return { sessions: rows.map((row) => ({ ...row, started_at: iso(row.started_at), last_seen: iso(row.last_seen) })), pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
 }
 
 export async function getForms(context: AnalyticsContext) {
-  const rows = await queryClickHouse<{ form_id: string; started: number; completed: number }>(`SELECT JSONExtractString(properties_json, 'formId') AS form_id, countIf(event_type = 'form_start') AS started, countIf(event_type = 'form_submit') AS completed FROM ai_growth_events WHERE ${eventWhere(context)} AND event_type IN ('form_start', 'form_submit') GROUP BY form_id HAVING form_id != '' ORDER BY started DESC LIMIT {limit:UInt32} OFFSET {offset:UInt32} FORMAT JSON`, parameters(context));
+  const rows = await queryPostgres<{ form_id: string; started: number; completed: number }>(Prisma.sql`SELECT properties->>'formId' AS form_id, COUNT(*) FILTER (WHERE event_type = 'form_start')::int AS started, COUNT(*) FILTER (WHERE event_type = 'form_submit')::int AS completed FROM tracking_events WHERE ${eventWhere(context)} AND event_type IN ('form_start', 'form_submit') AND COALESCE(properties->>'formId', '') <> '' GROUP BY properties->>'formId' ORDER BY started DESC ${pagination(context)}`);
   return { forms: rows.map((row) => ({ ...row, completionRate: Number(row.started) ? Number(((Number(row.completed) / Number(row.started)) * 100).toFixed(2)) : 0 })), pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
 }
 
@@ -102,18 +100,18 @@ export async function getFunnels(_context: AnalyticsContext) {
 }
 
 export async function getBehaviour(context: AnalyticsContext) {
-  const rows = await queryClickHouse<{ event_type: string; events: number; visitors: number }>(`SELECT event_type, count() AS events, uniqExact(visitor_id) AS visitors FROM ai_growth_events WHERE ${eventWhere(context)} AND event_type IN ('click', 'scroll', 'page_view') GROUP BY event_type ORDER BY events DESC FORMAT JSON`, parameters(context));
+  const rows = await queryPostgres<{ event_type: string; events: number; visitors: number }>(Prisma.sql`SELECT event_type, COUNT(*)::int AS events, COUNT(DISTINCT visitor_id)::int AS visitors FROM tracking_events WHERE ${eventWhere(context)} AND event_type IN ('click', 'scroll', 'page_view') GROUP BY event_type ORDER BY events DESC`);
   return { behaviour: rows, range: { from: context.from, to: context.to } };
 }
 
 export async function getHeatmaps(context: AnalyticsContext) {
-  const rows = await queryClickHouse<{ url: string; clicks: number; visitors: number }>(`SELECT url, count() AS clicks, uniqExact(visitor_id) AS visitors FROM ai_growth_events WHERE ${eventWhere(context)} AND event_type = 'click' GROUP BY url ORDER BY clicks DESC LIMIT {limit:UInt32} OFFSET {offset:UInt32} FORMAT JSON`, parameters(context));
+  const rows = await queryPostgres<{ url: string; clicks: number; visitors: number }>(Prisma.sql`SELECT url, COUNT(*)::int AS clicks, COUNT(DISTINCT visitor_id)::int AS visitors FROM tracking_events WHERE ${eventWhere(context)} AND event_type = 'click' GROUP BY url ORDER BY clicks DESC ${pagination(context)}`);
   return { heatmaps: rows, pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit }, message: "Coordinate-level heatmaps require click coordinates in the tracking payload." };
 }
 
 export async function getReplays(context: AnalyticsContext) {
-  const rows = await queryClickHouse<{ session_id: string; visitor_id: string; started_at: string; last_seen: string; events: number; converted: number }>(`SELECT session_id, argMin(visitor_id, occurred_at) AS visitor_id, min(occurred_at) AS started_at, max(occurred_at) AS last_seen, count() AS events, countIf(event_type = 'conversion') > 0 AS converted FROM ai_growth_events WHERE ${eventWhere(context)} GROUP BY session_id ORDER BY last_seen DESC LIMIT {limit:UInt32} OFFSET {offset:UInt32} FORMAT JSON`, parameters(context));
-  return { replays: rows, pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
+  const rows = await queryPostgres<{ session_id: string; visitor_id: string; started_at: Date; last_seen: Date; events: number; converted: boolean }>(Prisma.sql`SELECT session_id, (ARRAY_AGG(visitor_id ORDER BY occurred_at ASC))[1] AS visitor_id, MIN(occurred_at) AS started_at, MAX(occurred_at) AS last_seen, COUNT(*)::int AS events, (COUNT(*) FILTER (WHERE event_type = 'conversion') > 0) AS converted FROM tracking_events WHERE ${eventWhere(context)} GROUP BY session_id ORDER BY last_seen DESC ${pagination(context)}`);
+  return { replays: rows.map((row) => ({ ...row, started_at: iso(row.started_at), last_seen: iso(row.last_seen) })), pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
 }
 
 export async function getInsights(context: AnalyticsContext) {

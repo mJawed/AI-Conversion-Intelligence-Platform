@@ -1,5 +1,6 @@
 import amqp, { type Channel, type ChannelModel, type ConsumeMessage } from "amqplib";
 import Redis from "ioredis";
+import { getInfrastructureConfig } from "./config";
 
 export type PipelineEvent = {
   eventId: string;
@@ -45,7 +46,7 @@ export function isEventPipelineEnabled() {
 }
 
 export function getPipelineMetrics() {
-  return { enabled: isEventPipelineEnabled(), state: pipelineState, ...metrics };
+  return { enabled: isEventPipelineEnabled(), state: pipelineState, ...getInfrastructureConfig(), ...metrics };
 }
 
 export function recordAcceptedEvent() {

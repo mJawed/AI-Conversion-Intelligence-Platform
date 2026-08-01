@@ -4,13 +4,16 @@
   "scripts": {
     "dev": "tsx src/server.ts",
     "dev:watch": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
     "lint": "eslint src test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run test:unit",
     "test:unit": "node --import tsx --test test/unit/*.test.ts",
     "test:integration": "node --import tsx --test test/integration/*.test.ts",
     "smoke:tracker": "node ../../scripts/smoke-tracker.mjs",
+    "smoke:free": "node ../../scripts/smoke-free-mvp.mjs",
+    "report:free": "node ../../scripts/report-free-usage.mjs",
     "db:generate": "prisma generate --schema ../../prisma/schema.prisma",
     "db:validate": "prisma validate --schema ../../prisma/schema.prisma",
     "db:format": "prisma format --schema ../../prisma/schema.prisma",
@@ -18,12 +21,14 @@
     "db:migrate:auth": "prisma migrate dev --schema ../../prisma/schema.prisma --name auth",
     "db:migrate:tracking": "prisma migrate dev --schema ../../prisma/schema.prisma --name tracking",
     "db:migrate:security": "prisma migrate dev --schema ../../prisma/schema.prisma --name security",
+    "db:migrate:events": "prisma migrate dev --schema ../../prisma/schema.prisma --name free_event_storage",
     "db:migrate:deploy": "prisma migrate deploy --schema ../../prisma/schema.prisma",
     "db:status": "prisma migrate status --schema ../../prisma/schema.prisma",
     "infra:check": "node ../../scripts/validate-production-env.mjs",
     "infra:check:services": "node ../../scripts/check-infrastructure.mjs",
     "clickhouse:schema": "node ../../scripts/apply-clickhouse-schema.mjs",
-    "db:seed": "tsx ../../prisma/seed.ts"
+    "db:seed": "tsx ../../prisma/seed.ts",
+    "db:cleanup:events": "tsx src/cleanup-events.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.7.0",

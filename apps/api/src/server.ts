@@ -18,7 +18,7 @@ dotenv.config();
 dotenv.config({ path: "../../.env" });
 
 const app = express();
-const port = Number(process.env.API_PORT ?? 4000);
+const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
 const allowedOrigins = new Set((process.env.CORS_ORIGINS ?? "http://localhost:3000").split(",").map((origin) => origin.trim()).filter(Boolean));
 
 app.use(helmet());
@@ -70,7 +70,7 @@ app.get("/ready", async (_request, response) => {
 });
 
 app.get("/api/v1", (_request, response) => {
-  response.json({ name: "AI Growth API", version: "v1", status: "ready" });
+  response.json({ name: "AI Growth API", version: "v1", status: "ready", infrastructure: getPipelineMetrics() });
 });
 
 const server = app.listen(port, () => {

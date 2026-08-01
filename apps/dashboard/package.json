@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "start": "next start",
     "lint": "eslint app",
     "typecheck": "tsc --noEmit",
     "smoke": "node ../../scripts/smoke-dashboard.mjs"

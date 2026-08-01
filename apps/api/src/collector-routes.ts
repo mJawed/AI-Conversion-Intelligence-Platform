@@ -1,9 +1,10 @@
-import { WebsiteStatus } from "@prisma/client";
+import { Prisma, WebsiteStatus } from "@prisma/client";
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { normalizeDomain, recordTrackingEvent } from "./website-routes";
 import { prisma } from "./lib/prisma";
 import { publishEvent, recordAcceptedEvent, type PipelineEvent } from "./event-pipeline";
+import { isPostgresEventStorageEnabled } from "./config";
 
 const eventTypes = ["page_view", "session_start", "session_end", "form_start", "form_submit", "conversion", "click", "scroll", "custom"] as const;
 
@@ -100,6 +101,34 @@ export function publicEventSummary(event: CollectorEvent) {
   };
 }
 
+export function toTrackingEventData(event: PipelineEvent) {
+  return {
+    websiteId: event.websiteId,
+    eventId: event.eventId,
+    trackingId: event.trackingId,
+    eventType: event.eventType,
+    occurredAt: new Date(event.occurredAt),
+    visitorId: event.visitorId,
+    sessionId: event.sessionId,
+    url: event.url,
+    referrer: event.referrer,
+    title: event.title ?? null,
+    properties: event.properties as Prisma.InputJsonValue,
+    context: event.context as Prisma.InputJsonValue,
+  };
+}
+
+export async function persistTrackingEvent(event: PipelineEvent) {
+  if (!isPostgresEventStorageEnabled()) return "disabled" as const;
+  try {
+    await prisma.trackingEvent.create({ data: toTrackingEventData(event) });
+    return "stored" as const;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return "duplicate" as const;
+    throw error;
+  }
+}
+
 export const collectorRouter = Router();
 
 collectorRouter.post("/", async (request: Request, response: Response) => {
@@ -148,6 +177,11 @@ collectorRouter.post("/", async (request: Request, response: Response) => {
     };
     recordAcceptedEvent();
     await publishEvent(pipelineEvent);
+    const persistence = await persistTrackingEvent(pipelineEvent);
+    if (persistence === "duplicate") {
+      response.json({ accepted: true, duplicate: true, eventId: input.eventId });
+      return;
+    }
     await recordTrackingEvent(website.id);
     response.status(202).json({ accepted: true, duplicate: false, firstEvent, eventId: input.eventId, websiteId: website.id, event: maskedEvent });
   } catch (error) {
