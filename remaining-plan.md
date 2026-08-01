@@ -94,6 +94,8 @@ The remaining work is below.
 
 ## Phase 16 — Funnel and conversion configuration
 
+**Status:** Complete
+
 ### Scope
 
 - Add funnel definition persistence.
@@ -102,6 +104,19 @@ The remaining work is below.
 - Add conversion event mapping.
 - Add funnel analytics queries and comparison periods.
 - Add permissions for creating and editing funnels.
+
+### Delivered
+
+- Added PostgreSQL `Funnel` and `FunnelStep` models with active/archive states.
+- Added tenant-scoped funnel CRUD endpoints with role checks for
+  `OWNER`, `ADMIN`, and `DEVELOPER` members.
+- Added server validation for step count, duplicate paths, goal types, and
+  required goal values.
+- Added safe archive behavior and audit records for create, update, and archive
+  operations.
+- Added live PostgreSQL funnel analytics for step visitors, conversion rates,
+  drop-offs, and conversion goals.
+- Connected the dashboard funnel editor to live create, edit, and archive APIs.
 
 ### Completion criteria
 

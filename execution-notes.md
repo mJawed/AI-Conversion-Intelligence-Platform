@@ -1440,3 +1440,25 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - PostgreSQL-only decision: retained for the current low-volume MVP
 - First health check latency: approximately 3.46 seconds, recorded as a
   free-tier wake-up limitation to monitor
+
+## Remaining Plan Phase 16 — Funnel and conversion configuration
+
+**Status:** Complete
+
+### Completed
+
+- Added persistent PostgreSQL funnel and funnel-step definitions.
+- Added tenant-scoped create, update, list, and archive APIs with organization
+  role authorization.
+- Added conversion-goal validation and duplicate-step protection.
+- Added live PostgreSQL funnel analytics for visitors, conversions, rates, and
+  step drop-offs.
+- Connected the dashboard funnel editor to live persistence APIs.
+- Added audit records for funnel creation, updates, and archive operations.
+
+### Verification
+
+- Prisma migration and database status: passed
+- API typecheck/build: passed
+- API unit tests: passed (14/14)
+- Dashboard production build: passed
