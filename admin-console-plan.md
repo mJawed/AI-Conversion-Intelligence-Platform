@@ -187,3 +187,24 @@ recoverable where possible, and covered by tests.
 
 Execute phases sequentially: Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5
 → Phase 6 → Phase 7. Commit each phase separately with a specific message.
+
+## Execution note — Phase 1
+
+**Status:** Completed.
+
+Implemented the platform-admin foundation:
+
+- Added the `PlatformAdmin` registry with revocation support.
+- Added server-side `requirePlatformAdmin` authorization middleware.
+- Added protected `GET /api/v1/admin/access` foundation endpoint.
+- Added audit events for admin sign-in, granted access, and denied access.
+- Added `admin:grant` and `admin:revoke` CLI commands for controlled bootstrap.
+- Added the Prisma migration and repaired its migration history without resetting
+  or deleting the existing Neon database.
+- Verified API build, migration status, and all unit tests.
+
+To grant access to an approved account:
+
+```bash
+npm run admin:grant --workspace @ai-growth/api -- user@example.com
+```
