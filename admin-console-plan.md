@@ -208,3 +208,21 @@ To grant access to an approved account:
 ```bash
 npm run admin:grant --workspace @ai-growth/api -- user@example.com
 ```
+
+## Execution note — Phase 2
+
+**Status:** Completed.
+
+Implemented the protected admin overview API:
+
+- Added `GET /api/v1/admin/overview` with bounded date-range filtering.
+- Added total, active, and new user counts.
+- Added total, active, new, free, and paid organization counts.
+- Added website and tracking-event totals.
+- Added `auth.sign_in` audit events so active-user metrics are server-derived.
+- Added admin overview audit events.
+- Verified unauthenticated requests receive `401`.
+- Verified API build and all unit tests.
+
+The paid count currently uses the existing server-side organization plan field;
+provider-confirmed billing state is scheduled for Phase 6.
