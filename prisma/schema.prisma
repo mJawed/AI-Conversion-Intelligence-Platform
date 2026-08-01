@@ -64,6 +64,12 @@ enum FunnelStatus {
   ARCHIVED
 }
 
+enum InsightStatus {
+  OPEN
+  DISMISSED
+  RESOLVED
+}
+
 model User {
   id                  String               @id @default(uuid()) @db.Uuid
   name                String?
@@ -102,6 +108,7 @@ model Organization {
   privacyRequests PrivacyRequest[]
   subscriptions   Subscription[]
   funnels         Funnel[]
+  insights        Insight[]
 
   @@index([ownerId])
   @@map("organizations")
@@ -140,6 +147,7 @@ model Website {
   organization       Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   trackingEvents     TrackingEvent[]
   funnels            Funnel[]
+  insights           Insight[]
 
   @@index([organizationId])
   @@index([domain])
@@ -179,6 +187,35 @@ model FunnelStep {
   @@unique([funnelId, position])
   @@index([funnelId])
   @@map("funnel_steps")
+}
+
+model Insight {
+  id                  String        @id @default(uuid()) @db.Uuid
+  organizationId      String        @map("organization_id") @db.Uuid
+  websiteId           String        @map("website_id") @db.Uuid
+  fingerprint         String
+  category            String
+  severity            String
+  status              InsightStatus @default(OPEN)
+  title               String
+  page                String
+  problem             String
+  reason              String
+  evidence            Json          @default("[]")
+  confidence          String
+  businessImpact      String        @map("business_impact")
+  recommendation      String
+  expectedImprovement String        @map("expected_improvement")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+  resolvedAt          DateTime?     @map("resolved_at")
+  organization        Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  website             Website       @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, fingerprint])
+  @@index([organizationId, status, updatedAt])
+  @@index([websiteId, category, severity])
+  @@map("insights")
 }
 
 model TrackingEvent {
