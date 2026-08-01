@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { DashboardShell, EmptyState, PageHeader } from "../components/dashboard-shell";
 import { Button, ErrorState, LoadingState } from "../components/ui";
 import { aiInsights, type AIInsight } from "../data/mock";
-import { getAuthenticatedAnalytics } from "../lib/api-client";
+import { getAuthenticatedAnalytics, updateInsightStatus } from "../lib/api-client";
 import { useAccount, useMockData } from "../lib/account-context";
 import { InsightsView } from "./insights-view";
 
@@ -29,6 +29,12 @@ export default function InsightsPage() {
     return () => { cancelled = true; };
   }, [account.selectedOrganization, account.selectedWebsite, account.tokens, rangeDays, retryKey]);
 
+  async function saveInsightStatus(insightId: string, status: AIInsight["status"]) {
+    if (!account.tokens?.accessToken || !account.selectedOrganization || !account.selectedWebsite) return;
+    const apiStatus = status === "Resolved" ? "RESOLVED" : status === "Dismissed" ? "DISMISSED" : "OPEN";
+    await updateInsightStatus(account.tokens.accessToken, account.selectedOrganization.id, account.selectedWebsite.id, insightId, apiStatus);
+    setLiveInsights((current) => current.map((insight) => insight.id === insightId ? { ...insight, status } : insight));
+  }
   const insights = useMockData ? aiInsights : liveInsights;
-  return <DashboardShell activeHref="/insights"><PageHeader eyebrow="AI insights" title="Know what to fix next." action={<Button>Generate report ✦</Button>} /><div className="page-intro"><p>Evidence-backed CRO recommendations ranked by confidence, impact, and urgency.</p><select className="date-pill" value={rangeDays} onChange={(event) => setRangeDays(Number(event.target.value))} aria-label="Insights date range">{ranges.map((range) => <option key={range.days} value={range.days}>{range.label}</option>)}</select></div>{!useMockData && account.isLoading ? <LoadingState /> : !useMockData && !account.selectedWebsite ? <EmptyState title="Select or connect a website" description="Create a website and install tracking before AI insights can be generated." /> : !useMockData && error ? <ErrorState message={error} onRetry={() => setRetryKey((key) => key + 1)} /> : !useMockData && isLoading ? <LoadingState /> : !useMockData && insights.length === 0 ? <EmptyState title="AI insights are not available yet" description={message ?? "Insights will appear after baseline analytics signals and the AI generation service are enabled."} action={<a className="button button-dark" href="/">View analytics</a>} /> : <InsightsView insights={insights} live={!useMockData} />}</DashboardShell>;
+  return <DashboardShell activeHref="/insights"><PageHeader eyebrow="AI insights" title="Know what to fix next." action={<Button>Generate report ✦</Button>} /><div className="page-intro"><p>Evidence-backed CRO recommendations ranked by confidence, impact, and urgency.</p><select className="date-pill" value={rangeDays} onChange={(event) => setRangeDays(Number(event.target.value))} aria-label="Insights date range">{ranges.map((range) => <option key={range.days} value={range.days}>{range.label}</option>)}</select></div>{!useMockData && account.isLoading ? <LoadingState /> : !useMockData && !account.selectedWebsite ? <EmptyState title="Select or connect a website" description="Create a website and install tracking before AI insights can be generated." /> : !useMockData && error ? <ErrorState message={error} onRetry={() => setRetryKey((key) => key + 1)} /> : !useMockData && isLoading ? <LoadingState /> : !useMockData && insights.length === 0 ? <EmptyState title="No reliable insights yet" description={message ?? "More traffic is needed before reliable CRO insights can be generated."} action={<a className="button button-dark" href="/">View analytics</a>} /> : <InsightsView insights={insights} live={!useMockData} onStatusLive={saveInsightStatus} />}</DashboardShell>;
 }
