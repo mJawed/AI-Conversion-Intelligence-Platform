@@ -58,8 +58,9 @@ requiring RabbitMQ, Redis, or ClickHouse.
 
 The repository includes `render.yaml` for two free web services. In Render,
 create a Blueprint from the repository and provide the four `sync: false`
-values. Use the deployed dashboard URL as `CORS_ORIGINS` and the deployed API
-URL as `NEXT_PUBLIC_API_URL`.
+values. Use the deployed dashboard URL as `CORS_ORIGINS`. The current API URL
+is configured as `https://ai-growth-api-ooio.onrender.com`; update it if Render
+assigns a different service URL.
 
 Set `NEXT_PUBLIC_USE_MOCK_DATA=false` for the dashboard so deployed routes use
 the live API and require authentication.

@@ -39,4 +39,4 @@ services:
       - key: NEXT_PUBLIC_USE_MOCK_DATA
         value: "false"
       - key: NEXT_PUBLIC_API_URL
-        sync: false
+        value: https://ai-growth-api-ooio.onrender.com
