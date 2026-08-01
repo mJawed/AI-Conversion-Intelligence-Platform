@@ -59,6 +59,11 @@ enum BillingEventStatus {
   FAILED
 }
 
+enum FunnelStatus {
+  ACTIVE
+  ARCHIVED
+}
+
 model User {
   id                  String               @id @default(uuid()) @db.Uuid
   name                String?
@@ -96,6 +101,7 @@ model Organization {
   auditLogs       AuditLog[]
   privacyRequests PrivacyRequest[]
   subscriptions   Subscription[]
+  funnels         Funnel[]
 
   @@index([ownerId])
   @@map("organizations")
@@ -133,10 +139,46 @@ model Website {
   updatedAt          DateTime                   @updatedAt @map("updated_at")
   organization       Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   trackingEvents     TrackingEvent[]
+  funnels            Funnel[]
 
   @@index([organizationId])
   @@index([domain])
   @@map("websites")
+}
+
+model Funnel {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  websiteId      String       @map("website_id") @db.Uuid
+  name           String
+  description    String?
+  goalType       String       @map("goal_type")
+  goalValue      String?      @map("goal_value")
+  status         FunnelStatus @default(ACTIVE)
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  website        Website      @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  steps          FunnelStep[]
+
+  @@index([organizationId, status])
+  @@index([websiteId, status])
+  @@map("funnels")
+}
+
+model FunnelStep {
+  id        String   @id @default(uuid()) @db.Uuid
+  funnelId  String   @map("funnel_id") @db.Uuid
+  position  Int
+  name      String
+  path      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  funnel    Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  @@unique([funnelId, position])
+  @@index([funnelId])
+  @@map("funnel_steps")
 }
 
 model TrackingEvent {

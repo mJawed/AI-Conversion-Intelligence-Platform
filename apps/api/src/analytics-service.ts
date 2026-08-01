@@ -95,8 +95,21 @@ export async function getForms(context: AnalyticsContext) {
   return { forms: rows.map((row) => ({ ...row, completionRate: Number(row.started) ? Number(((Number(row.completed) / Number(row.started)) * 100).toFixed(2)) : 0 })), pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
 }
 
-export async function getFunnels(_context: AnalyticsContext) {
-  return { funnels: [], pagination: { limit: _context.limit, offset: _context.offset, hasMore: false }, message: "Funnel definitions will be added when funnel configuration is available." };
+export async function getFunnels(context: AnalyticsContext) {
+  const definitions = await prisma.funnel.findMany({ where: { organizationId: context.organizationId, websiteId: context.websiteId, status: "ACTIVE" }, orderBy: { updatedAt: "desc" }, take: context.limit, skip: context.offset, include: { steps: { orderBy: { position: "asc" } } } });
+  const funnels = await Promise.all(definitions.map(async (definition) => {
+    const stepRows = await Promise.all(definition.steps.map((step) => queryPostgres<{ visitors: number }>(Prisma.sql`SELECT COUNT(DISTINCT visitor_id)::int AS visitors FROM tracking_events WHERE ${eventWhere(context)} AND split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) = ${step.path}`)));
+    const goalEventType = definition.goalType === "form_submit" ? "form_submit" : definition.goalType === "custom" ? "custom" : "conversion";
+    const goalFilter = definition.goalType === "custom" ? Prisma.sql`AND properties->>'eventName' = ${definition.goalValue ?? ""}` : Prisma.empty;
+    const conversionRows = await queryPostgres<{ conversions: number }>(Prisma.sql`SELECT COUNT(DISTINCT visitor_id)::int AS conversions FROM tracking_events WHERE ${eventWhere(context)} AND event_type = ${goalEventType} ${goalFilter}`);
+    const visitors = stepRows.map((row) => Number(row[0]?.visitors ?? 0));
+    const totalVisitors = visitors[0] ?? 0;
+    const conversions = Number(conversionRows[0]?.conversions ?? 0);
+    const steps = definition.steps.map((step, index) => { const count = visitors[index] ?? 0; const previous = visitors[index - 1] ?? count; const conversion = previous ? (count / previous) * 100 : 0; return { name: step.name, path: step.path, visitors: String(count), count: totalVisitors ? (count / totalVisitors) * 100 : 0, conversion: `${conversion.toFixed(1)}%`, dropOff: index === 0 ? "—" : `${Math.max(0, 100 - conversion).toFixed(1)}%` }; });
+    const conversionRate = totalVisitors ? (conversions / totalVisitors) * 100 : 0;
+    return { id: definition.id, name: definition.name, description: definition.description ?? "Custom conversion journey", goalType: definition.goalType, goalValue: definition.goalValue, totalVisitors: String(totalVisitors), conversions: String(conversions), conversionRate: `${conversionRate.toFixed(2)}%`, change: "—", steps, explanation: { title: conversions ? "Conversion signal detected" : "Not enough data yet", reason: conversions ? `${conversions} visitors matched this conversion goal in the selected period.` : "This funnel will show drop-off evidence after matching events are received.", confidence: totalVisitors ? "Measured" : "—", recommendation: conversions ? "Focus on the step with the largest drop-off before the conversion goal." : "Collect enough traffic to identify the largest conversion leak.", impact: "Not available" } };
+  }));
+  return { funnels, pagination: { limit: context.limit, offset: context.offset, hasMore: definitions.length === context.limit }, message: funnels.length ? undefined : "Create a funnel to measure a conversion journey." };
 }
 
 export async function getBehaviour(context: AnalyticsContext) {
