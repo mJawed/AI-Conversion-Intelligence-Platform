@@ -31,6 +31,7 @@ authRouter.post("/login", authRateLimit, async (request, response) => {
   if (!input) return;
   try {
     const result = await loginUser(input);
+    void writeAuditLog({ userId: result.user.id, action: "auth.sign_in", entityType: "user", entityId: result.user.id, ipAddress: request.ip });
     if (await isPlatformAdmin(result.user.id)) void writeAuditLog({ userId: result.user.id, action: "admin.sign_in", entityType: "platform_admin", ipAddress: request.ip });
     response.json(result);
   } catch (error) { if (error instanceof Error && error.message === "INVALID_CREDENTIALS") response.status(401).json({ error: "INVALID_CREDENTIALS" }); else response.status(500).json({ error: "LOGIN_FAILED" }); }
