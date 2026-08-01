@@ -27,6 +27,8 @@ export async function apiRequest<T>(path: string, options?: RequestInit): Promis
         INVALID_CREDENTIALS: "The email or password is incorrect.",
         VALIDATION_ERROR: "Please check the information you entered.",
         INVALID_REFRESH_TOKEN: "Your session has expired. Please sign in again.",
+        INVALID_PASSWORD_RESET_TOKEN: "That reset link is invalid or has expired. Request a new one.",
+        PASSWORD_RESET_FAILED: "We could not reset your password. Please try again.",
         INVALID_DOMAIN: "Enter a domain such as example.com without a page path.",
         DOMAIN_MISMATCH: "The verification domain does not match this website.",
         WEBSITE_CREATE_FAILED: "Could not create the website. Please try again.",
@@ -72,12 +74,21 @@ export type Organization = { id: string; name: string; slug: string; plan: strin
 export type ApiWebsite = { id: string; organizationId: string; name: string; domain: string; trackingId: string; timezone: string; currency: string; industry: string | null; status: "ACTIVE" | "PAUSED" | "ARCHIVED"; installationStatus: "NOT_INSTALLED" | "INSTALLED" | "VERIFIED"; trackingVerifiedAt: string | null; firstEventAt: string | null; lastEventAt: string | null; createdAt: string; updatedAt: string };
 
 export type AuthResponse = { user: AuthUser; tokens: AuthTokens };
+export type PasswordResetResponse = { message: string; resetToken?: string; resetUrl?: string };
 export type ApiKey = { id: string; name: string; keyPrefix: string; lastUsedAt: string | null; revokedAt: string | null; createdAt: string };
 export type PrivacyRequest = { id: string; type: "EXPORT" | "DELETE"; status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED"; createdAt: string; completedAt: string | null };
 export type AuditLog = { id: string; action: string; entityType: string; entityId: string | null; metadata: unknown; createdAt: string };
 
 export function login(email: string, password: string) {
   return apiRequest<AuthResponse>("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+export function requestPasswordReset(email: string) {
+  return apiRequest<PasswordResetResponse>("/api/v1/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export function resetPassword(token: string, password: string) {
+  return apiRequest<{ message: string }>("/api/v1/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password }) });
 }
 
 export function register(name: string, email: string, password: string) {
