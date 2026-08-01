@@ -12,6 +12,7 @@ import { analyticsRouter } from "./analytics-routes";
 import { apiKeyRouter } from "./api-key-routes";
 import { privacyRouter, organizationPrivacyRouter } from "./privacy-routes";
 import { writeSafeRequestLog } from "./security";
+import { trackerScript } from "./tracker";
 
 dotenv.config();
 dotenv.config({ path: "../../.env" });
@@ -36,6 +37,10 @@ app.use("/api/v1/organizations/:organizationId/websites", websiteRouter);
 
 app.get("/health", (_request, response) => {
   response.json({ service: "api", status: "ok", timestamp: new Date().toISOString() });
+});
+
+app.get("/tracker.js", (_request, response) => {
+  response.type("application/javascript").set({ "Cache-Control": "public, max-age=300", "Cross-Origin-Resource-Policy": "cross-origin" }).send(trackerScript);
 });
 
 app.get("/health/db", async (_request, response) => {
