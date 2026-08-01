@@ -41,6 +41,13 @@ export function normalizeDomain(value: string) {
   return url.hostname.toLowerCase();
 }
 
+export function getTrackingVerificationStatus(website: { status: WebsiteStatus; firstEventAt: Date | null }) {
+  if (website.status === WebsiteStatus.PAUSED) return { verified: false, status: "TRACKING_PAUSED", message: "Tracking is paused for this website." } as const;
+  if (website.status === WebsiteStatus.ARCHIVED) return { verified: false, status: "TRACKING_ARCHIVED", message: "Tracking is unavailable for an archived website." } as const;
+  if (!website.firstEventAt) return { verified: false, status: "TRACKING_NOT_DETECTED", message: "No tracking event has been received yet." } as const;
+  return { verified: true, status: "TRACKING_VERIFIED", message: "Tracking is connected and receiving events." } as const;
+}
+
 function createTrackingId() {
   return `trk_${randomBytes(12).toString("hex")}`;
 }
@@ -160,6 +167,7 @@ websiteRouter.get("/:websiteId/tracking-script", async (request, response) => {
       tracking: {
         trackingId: website.trackingId,
         scriptUrl,
+        websiteStatus: website.status,
         installationStatus: website.installationStatus,
         verifiedAt: website.trackingVerifiedAt,
         firstEventAt: website.firstEventAt,
@@ -201,17 +209,13 @@ websiteRouter.post("/:websiteId/verify", requireOrganizationRole("OWNER", "ADMIN
       }
     }
 
-    if (!website.firstEventAt) {
-      response.status(202).json({
-        verified: false,
-        status: "TRACKING_NOT_DETECTED",
-        installationStatus: website.installationStatus,
-        message: "No tracking event has been received yet.",
-      });
+    const verification = getTrackingVerificationStatus(website);
+    if (!verification.verified) {
+      response.status(website.status === WebsiteStatus.ACTIVE ? 202 : 409).json({ ...verification, installationStatus: website.installationStatus });
       return;
     }
 
-    response.json({ verified: true, status: "TRACKING_VERIFIED", installationStatus: website.installationStatus, firstEventAt: website.firstEventAt, lastEventAt: website.lastEventAt });
+    response.json({ ...verification, installationStatus: website.installationStatus, firstEventAt: website.firstEventAt, lastEventAt: website.lastEventAt });
   } catch (error) {
     console.error("Tracking verification failed", error);
     response.status(500).json({ error: "TRACKING_VERIFICATION_FAILED" });
@@ -311,7 +315,7 @@ export async function recordTrackingEvent(websiteId: string) {
     where: { id: websiteId },
     data: {
       installationStatus: "VERIFIED",
-      trackingVerifiedAt: now,
+      trackingVerifiedAt: existing.firstEventAt ? undefined : now,
       firstEventAt: existing.firstEventAt ?? now,
       lastEventAt: now,
     },

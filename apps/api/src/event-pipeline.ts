@@ -52,6 +52,24 @@ export function recordAcceptedEvent() {
   metrics.accepted += 1;
 }
 
+export function toClickHouseRow(event: PipelineEvent, ingestedAt = new Date()) {
+  return {
+    event_id: event.eventId,
+    tracking_id: event.trackingId,
+    website_id: event.websiteId,
+    event_type: event.eventType,
+    occurred_at: event.occurredAt,
+    visitor_id: event.visitorId,
+    session_id: event.sessionId,
+    url: event.url,
+    referrer: event.referrer,
+    title: event.title ?? null,
+    properties_json: JSON.stringify(event.properties),
+    context_json: JSON.stringify(event.context),
+    ingested_at: ingestedAt.toISOString(),
+  };
+}
+
 async function getRabbitChannel() {
   if (rabbitChannel) return rabbitChannel;
   const connection = await amqp.connect(process.env.RABBITMQ_URL ?? "amqp://localhost:5672");
@@ -104,21 +122,7 @@ async function persistToClickHouse(event: PipelineEvent) {
   if (process.env.CLICKHOUSE_ENABLED !== "true") return;
   const baseUrl = process.env.CLICKHOUSE_URL ?? "http://localhost:8123";
   const query = "INSERT INTO ai_growth_events FORMAT JSONEachRow";
-  const row = {
-    event_id: event.eventId,
-    tracking_id: event.trackingId,
-    website_id: event.websiteId,
-    event_type: event.eventType,
-    occurred_at: event.occurredAt,
-    visitor_id: event.visitorId,
-    session_id: event.sessionId,
-    url: event.url,
-    referrer: event.referrer,
-    title: event.title ?? null,
-    properties_json: JSON.stringify(event.properties),
-    context_json: JSON.stringify(event.context),
-    ingested_at: new Date().toISOString(),
-  };
+  const row = toClickHouseRow(event);
   const response = await fetch(`${baseUrl}/?query=${encodeURIComponent(query)}`, { method: "POST", body: `${JSON.stringify(row)}\n`, headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(5000) });
   if (!response.ok) throw new Error(`CLICKHOUSE_WRITE_FAILED_${response.status}`);
 }
