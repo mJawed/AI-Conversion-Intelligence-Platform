@@ -216,6 +216,13 @@ The remaining work is below.
 
 ## Phase 20 — Private beta validation
 
+**Status:** In progress — beta validation protocol and verification tooling added; real-site cohorts remain to be run
+
+### Delivered
+
+- Added `PRIVATE-BETA.md` with onboarding, activation, retention, insight-usefulness, severity, and exit criteria.
+- Added a dependency-free beta stack check for API, dashboard, tracker, and optional synthetic event delivery.
+
 ### Scope
 
 - Onboard a small group of real websites.

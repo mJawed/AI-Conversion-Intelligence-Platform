@@ -1500,3 +1500,10 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added `/health/metrics` and a dependency-free health load-test command.
 - Added `RELIABILITY.md` with initial service targets, alert thresholds, backup/restore drill, rollback runbook, load-testing safeguards, and incident ownership.
 - Kept monitoring dependency-free for the free MVP; external log shipping and paid error-monitoring integrations remain optional deployment enhancements.
+## Remaining Plan Phase 20 — Private beta validation
+
+**Status:** In progress — protocol and tooling complete; real beta-site validation pending
+
+- Added `PRIVATE-BETA.md` with the real-site onboarding protocol, source-analytics comparison guidance, activation and retention baselines, insight usefulness review, issue severity, and exit criteria.
+- Added `beta:check` to verify the deployed API, database readiness, observability endpoint, dashboard routes, tracker script, and optionally one synthetic tracking event.
+- Real websites, cohort measurements, and beta feedback require participating sites and will be recorded during the next validation cycle.
