@@ -243,6 +243,25 @@ Implemented the protected usage reporting API:
 The API activity metric currently reports persisted audit activity; request-level
 telemetry and rate-limit history can be expanded in a later operational phase.
 
+## Execution note — Phase 5
+
+**Status:** Completed.
+
+Implemented the protected admin frontend at `/admin`:
+
+- Added admin access validation before rendering live data.
+- Added overview metric cards for users, organizations, plans, websites, and
+  events.
+- Added daily usage and recorded activity tables.
+- Added customer search, Free/Paid/status filters, and pagination.
+- Added customer detail inspection with members, websites, plan, status, and
+  event usage.
+- Added responsive admin-specific styles and loading/error/empty states.
+- Verified the production dashboard build.
+
+The admin page remains API-protected; a user cannot gain access by visiting the
+URL without a platform-admin record.
+
 The paid count currently uses the existing server-side organization plan field;
 provider-confirmed billing state is scheduled for Phase 6.
 
