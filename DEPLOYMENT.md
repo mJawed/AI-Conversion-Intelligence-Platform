@@ -93,6 +93,7 @@ or public logs.
 - `/health` — process health
 - `/health/db` — database connectivity
 - `/health/pipeline` — event pipeline metrics/state
+- `/health/metrics` — bounded in-memory request latency and error metrics
 - `/ready` — database readiness and enabled pipeline readiness
 
 ## Integration tests
