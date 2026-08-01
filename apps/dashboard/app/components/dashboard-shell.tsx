@@ -20,7 +20,7 @@ export function DashboardShell({ children, activeHref = "/" }: Readonly<{ childr
   }, [isLoading, user]);
 
   return (
-    <main className="shell">
+    <main className="shell" id="main-content">
       <aside className="sidebar">
         <Link className="brand" href="/" aria-label="AI Growth overview">
           <span className="brand-mark">✦</span>
@@ -29,7 +29,7 @@ export function DashboardShell({ children, activeHref = "/" }: Readonly<{ childr
 
         <nav className="primary-nav" aria-label="Primary navigation">
           {navigationItems.map((item) => (
-            <Link className={item.href === activeHref ? "nav-item active" : "nav-item"} href={item.href} key={item.label}>
+            <Link className={item.href === activeHref ? "nav-item active" : "nav-item"} href={item.href} key={item.label} aria-current={item.href === activeHref ? "page" : undefined}>
               <span className="nav-icon" aria-hidden="true">{item.icon}</span>
               <span>{item.label}</span>
             </Link>
@@ -38,7 +38,7 @@ export function DashboardShell({ children, activeHref = "/" }: Readonly<{ childr
 
         <AccountFooter />
       </aside>
-      <section className="content">{children}</section>
+      <section className="content" aria-label="Dashboard content">{children}</section>
     </main>
   );
 }

@@ -1,5 +1,5 @@
-export function Button({ children, variant = "default" }: Readonly<{ children: React.ReactNode; variant?: "default" | "dark" }>) {
-  return <button className={variant === "dark" ? "button button-dark" : "button"}>{children}</button>;
+export function Button({ children, variant = "default", className, type = "button", ...props }: Readonly<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "default" | "dark" }>) {
+  return <button {...props} className={`${variant === "dark" ? "button button-dark" : "button"}${className ? ` ${className}` : ""}`} type={type}>{children}</button>;
 }
 
 export function LoadingState() {

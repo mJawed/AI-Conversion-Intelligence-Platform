@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body><AccountProvider>{children}</AccountProvider></body></html>;
+  return <html lang="en"><body><a className="skip-link" href="#main-content">Skip to main content</a><AccountProvider>{children}</AccountProvider></body></html>;
 }

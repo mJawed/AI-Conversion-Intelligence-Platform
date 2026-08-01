@@ -5,7 +5,8 @@
     "dev": "next dev",
     "build": "next build",
     "lint": "eslint app",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke": "node ../../scripts/smoke-dashboard.mjs"
   },
   "dependencies": {
     "next": "^15.1.3",
