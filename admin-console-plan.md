@@ -265,6 +265,29 @@ URL without a platform-admin record.
 The paid count currently uses the existing server-side organization plan field;
 provider-confirmed billing state is scheduled for Phase 6.
 
+## Execution note — Phase 6
+
+**Status:** Completed.
+
+Implemented the provider-neutral billing foundation:
+
+- Added `Subscription` and `BillingEvent` models with indexes and idempotency
+  constraints.
+- Added signed webhook ingestion at
+  `POST /api/v1/billing/webhooks/:provider` with duplicate-event protection.
+- Added `GET /api/v1/admin/billing` for subscription status, recent billing
+  events, and organization/owner visibility.
+- Updated paid/free overview counts to use server-confirmed `ACTIVE` and
+  `TRIALING` subscriptions instead of the organization plan label.
+- Added a Billing subscription-health panel to the protected admin console.
+- Added `BILLING_WEBHOOK_SECRET` to deployment configuration and examples.
+- Applied the billing migration to the Neon database without resetting data.
+- Verified migration status, API build/tests, and dashboard production build.
+
+The webhook contract is intentionally provider-neutral. A future payment
+provider adapter should normalize provider events into this signed endpoint;
+set `BILLING_WEBHOOK_SECRET` in production before enabling external delivery.
+
 ## Execution note — Phase 3
 
 **Status:** Completed.

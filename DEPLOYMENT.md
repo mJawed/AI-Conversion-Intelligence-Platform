@@ -15,6 +15,7 @@ Copy `.env.example` into the deployment environment and replace all development 
 
 - `DATABASE_URL`
 - `JWT_SECRET`
+- `BILLING_WEBHOOK_SECRET` (required before enabling billing webhooks)
 - `ENCRYPTION_KEY` (64 hexadecimal characters)
 - `CORS_ORIGINS`
 - `POSTGRES_EVENT_STORAGE_ENABLED=true`
