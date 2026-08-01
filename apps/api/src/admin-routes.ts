@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuth } from "./auth-routes";
 import { requirePlatformAdmin } from "./admin-auth";
 import { writeAuditLog } from "./audit";
+import { getEventRetentionDays, getMaxTrackingEventsPerDay } from "./config";
 import { prisma } from "./lib/prisma";
 
 export const adminRouter = ExpressRouter();
@@ -132,5 +133,44 @@ adminRouter.get("/customers/:organizationId", async (request, response) => {
   } catch (error) {
     console.error("Admin customer detail failed", error);
     response.status(500).json({ error: "ADMIN_CUSTOMER_FETCH_FAILED" });
+  }
+});
+
+const usageQuerySchema = z.object({
+  organizationId: z.string().uuid().optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+});
+
+adminRouter.get("/usage", async (request, response) => {
+  const parsed = usageQuerySchema.safeParse(request.query);
+  if (!parsed.success) { response.status(400).json({ error: "INVALID_USAGE_QUERY", details: parsed.error.flatten() }); return; }
+  let range: { from: Date; to: Date };
+  try { range = getOverviewRange(parsed.data); }
+  catch { response.status(400).json({ error: "INVALID_DATE_RANGE" }); return; }
+  const eventOrganizationFilter = parsed.data.organizationId ? Prisma.sql`AND w.organization_id = ${parsed.data.organizationId}::uuid` : Prisma.empty;
+  const auditOrganizationFilter = parsed.data.organizationId ? Prisma.sql`AND a.organization_id = ${parsed.data.organizationId}::uuid` : Prisma.empty;
+  try {
+    const [daily, organizations, auditActivity, storage] = await Promise.all([
+      prisma.$queryRaw<Array<{ day: string; events: number; visitors: number; sessions: number }>>(Prisma.sql`SELECT TO_CHAR(DATE_TRUNC('day', e.occurred_at), 'YYYY-MM-DD') AS day, COUNT(e.id)::int AS events, COUNT(DISTINCT e.visitor_id)::int AS visitors, COUNT(DISTINCT e.session_id)::int AS sessions FROM tracking_events e JOIN websites w ON w.id = e.website_id WHERE e.occurred_at >= ${range.from} AND e.occurred_at < ${range.to} ${eventOrganizationFilter} GROUP BY DATE_TRUNC('day', e.occurred_at) ORDER BY day ASC`),
+      prisma.$queryRaw<Array<{ organization_id: string; organization_name: string; plan: string; events: number; visitors: number; sessions: number }>>(Prisma.sql`SELECT o.id AS organization_id, o.name AS organization_name, o.plan, COUNT(e.id)::int AS events, COUNT(DISTINCT e.visitor_id)::int AS visitors, COUNT(DISTINCT e.session_id)::int AS sessions FROM organizations o JOIN websites w ON w.organization_id = o.id JOIN tracking_events e ON e.website_id = w.id WHERE e.occurred_at >= ${range.from} AND e.occurred_at < ${range.to} ${eventOrganizationFilter} GROUP BY o.id, o.name, o.plan ORDER BY events DESC LIMIT 100`),
+      prisma.$queryRaw<Array<{ day: string; audit_events: number }>>(Prisma.sql`SELECT TO_CHAR(DATE_TRUNC('day', a.created_at), 'YYYY-MM-DD') AS day, COUNT(a.id)::int AS audit_events FROM audit_logs a WHERE a.created_at >= ${range.from} AND a.created_at < ${range.to} ${auditOrganizationFilter} GROUP BY DATE_TRUNC('day', a.created_at) ORDER BY day ASC`),
+      prisma.$queryRaw<Array<{ bytes: bigint }>>(Prisma.sql`SELECT pg_total_relation_size('tracking_events')::bigint AS bytes`),
+    ]);
+    const dailyEventLimit = getMaxTrackingEventsPerDay();
+    const warningThreshold = Math.floor(dailyEventLimit * 0.8);
+    const dailyUsage = daily.map((row) => ({ ...row, warning: Number(row.events) >= warningThreshold }));
+    await writeAuditLog({ userId: request.platformAdminId, action: "admin.usage_viewed", entityType: "platform_admin", metadata: { organizationId: parsed.data.organizationId, from: range.from.toISOString(), to: range.to.toISOString() }, ipAddress: request.ip });
+    response.json({ usage: {
+      range: { from: range.from.toISOString(), to: range.to.toISOString() },
+      daily: dailyUsage,
+      organizations,
+      apiActivity: auditActivity,
+      storage: { trackingEventsBytes: Number(storage[0]?.bytes ?? 0) },
+      thresholds: { dailyEventLimit, dailyEventWarningAt: warningThreshold, eventRetentionDays: getEventRetentionDays() },
+    } });
+  } catch (error) {
+    console.error("Admin usage report failed", error);
+    response.status(500).json({ error: "ADMIN_USAGE_FETCH_FAILED" });
   }
 });
