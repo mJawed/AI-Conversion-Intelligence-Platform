@@ -7,6 +7,8 @@ import { prisma } from "./lib/prisma";
 export const registerSchema = z.object({ name: z.string().trim().min(2).max(80), email: z.string().trim().email().max(255), password: z.string().min(8).max(128) });
 export const loginSchema = z.object({ email: z.string().trim().email(), password: z.string().min(1) });
 export const refreshSchema = z.object({ refreshToken: z.string().min(20) });
+export const forgotPasswordSchema = z.object({ email: z.string().trim().email().max(255) });
+export const resetPasswordSchema = z.object({ token: z.string().min(32).max(256), password: z.string().min(8).max(128) });
 
 const getSecret = () => {
   const secret = process.env.JWT_SECRET;
@@ -15,6 +17,7 @@ const getSecret = () => {
 };
 
 const hashRefreshToken = (token: string) => createHash("sha256").update(token).digest("hex");
+const hashPasswordResetToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
 const publicUser = (user: { id: string; name: string | null; email: string; avatar: string | null; provider: string | null; emailVerifiedAt: Date | null }) => ({ id: user.id, name: user.name, email: user.email, avatar: user.avatar, provider: user.provider, emailVerifiedAt: user.emailVerifiedAt });
 
@@ -57,6 +60,43 @@ export async function refreshUser(refreshToken: string) {
 
 export async function revokeRefreshToken(refreshToken: string) {
   await prisma.refreshToken.updateMany({ where: { tokenHash: hashRefreshToken(refreshToken), revokedAt: null }, data: { revokedAt: new Date() } });
+}
+
+export async function requestPasswordReset(input: z.infer<typeof forgotPasswordSchema>) {
+  const user = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() } });
+  const response: { message: string; resetToken?: string; resetUrl?: string } = {
+    message: "If an account exists for that email, reset instructions will be sent.",
+  };
+
+  // Keep the response identical for unknown emails and passwordless OAuth accounts.
+  if (!user?.passwordHash) return response;
+
+  const token = randomBytes(48).toString("hex");
+  await prisma.$transaction([
+    prisma.passwordResetToken.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } }),
+    prisma.passwordResetToken.create({ data: { userId: user.id, tokenHash: hashPasswordResetToken(token), expiresAt: new Date(Date.now() + 30 * 60 * 1000) } }),
+  ]);
+
+  // Email delivery is intentionally not faked. During local development, return a link
+  // so the flow can be tested without paying for an email provider.
+  if (process.env.NODE_ENV !== "production") {
+    const dashboardUrl = process.env.DASHBOARD_URL ?? "http://localhost:3000";
+    response.resetToken = token;
+    response.resetUrl = `${dashboardUrl}/reset-password?token=${token}`;
+  }
+  return response;
+}
+
+export async function resetPassword(input: z.infer<typeof resetPasswordSchema>) {
+  const stored = await prisma.passwordResetToken.findUnique({ where: { tokenHash: hashPasswordResetToken(input.token) }, include: { user: true } });
+  if (!stored || stored.usedAt || stored.expiresAt <= new Date() || !stored.user.passwordHash) throw new Error("INVALID_PASSWORD_RESET_TOKEN");
+
+  const passwordHash = await bcrypt.hash(input.password, 12);
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: stored.userId }, data: { passwordHash } }),
+    prisma.passwordResetToken.update({ where: { id: stored.id }, data: { usedAt: new Date() } }),
+    prisma.refreshToken.updateMany({ where: { userId: stored.userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+  ]);
 }
 
 export async function getUserById(userId: string) {

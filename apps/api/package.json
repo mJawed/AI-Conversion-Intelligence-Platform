@@ -19,6 +19,7 @@
     "db:format": "prisma format --schema ../../prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema ../../prisma/schema.prisma --name init",
     "db:migrate:auth": "prisma migrate dev --schema ../../prisma/schema.prisma --name auth",
+    "db:migrate:password-reset": "prisma migrate dev --schema ../../prisma/schema.prisma --name password_reset",
     "db:migrate:tracking": "prisma migrate dev --schema ../../prisma/schema.prisma --name tracking",
     "db:migrate:security": "prisma migrate dev --schema ../../prisma/schema.prisma --name security",
     "db:migrate:events": "prisma migrate dev --schema ../../prisma/schema.prisma --name free_event_storage",

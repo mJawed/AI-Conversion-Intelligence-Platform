@@ -1,5 +1,5 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
-import { authenticateAccessToken, getUserById, loginSchema, loginUser, refreshSchema, refreshUser, registerSchema, registerUser, revokeRefreshToken } from "./auth";
+import { authenticateAccessToken, forgotPasswordSchema, getUserById, loginSchema, loginUser, refreshSchema, refreshUser, registerSchema, registerUser, requestPasswordReset, resetPassword, resetPasswordSchema, revokeRefreshToken } from "./auth";
 import { authRateLimit } from "./security";
 
 declare global { namespace Express { interface Request { authUserId?: string } } }
@@ -28,6 +28,19 @@ authRouter.post("/login", authRateLimit, async (request, response) => {
   const input = validate(loginSchema, request.body, response) as Parameters<typeof loginUser>[0] | null;
   if (!input) return;
   try { response.json(await loginUser(input)); } catch (error) { if (error instanceof Error && error.message === "INVALID_CREDENTIALS") response.status(401).json({ error: "INVALID_CREDENTIALS" }); else response.status(500).json({ error: "LOGIN_FAILED" }); }
+});
+
+authRouter.post("/forgot-password", authRateLimit, async (request, response) => {
+  const input = validate(forgotPasswordSchema, request.body, response) as Parameters<typeof requestPasswordReset>[0] | null;
+  if (!input) return;
+  try { response.status(202).json(await requestPasswordReset(input)); } catch { response.status(500).json({ error: "PASSWORD_RESET_FAILED" }); }
+});
+
+authRouter.post("/reset-password", authRateLimit, async (request, response) => {
+  const input = validate(resetPasswordSchema, request.body, response) as Parameters<typeof resetPassword>[0] | null;
+  if (!input) return;
+  try { await resetPassword(input); response.json({ message: "Password reset successfully. You can now sign in." }); }
+  catch (error) { if (error instanceof Error && error.message === "INVALID_PASSWORD_RESET_TOKEN") response.status(400).json({ error: "INVALID_PASSWORD_RESET_TOKEN" }); else response.status(500).json({ error: "PASSWORD_RESET_FAILED" }); }
 });
 
 authRouter.post("/refresh", async (request, response) => {

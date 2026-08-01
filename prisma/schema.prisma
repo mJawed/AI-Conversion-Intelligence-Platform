@@ -46,20 +46,21 @@ enum PrivacyRequestStatus {
 }
 
 model User {
-  id                 String               @id @default(uuid()) @db.Uuid
-  name               String?
-  email              String               @unique
-  passwordHash       String?              @map("password_hash")
-  avatar             String?
-  provider           String?
-  emailVerifiedAt    DateTime?            @map("email_verified_at")
-  createdAt          DateTime             @default(now()) @map("created_at")
-  updatedAt          DateTime             @updatedAt @map("updated_at")
-  memberships        OrganizationMember[]
-  ownedOrganizations Organization[]       @relation("OrganizationOwner")
-  refreshTokens      RefreshToken[]
-  auditLogs          AuditLog[]           @relation("AuditLogUser")
-  privacyRequests    PrivacyRequest[]
+  id                  String               @id @default(uuid()) @db.Uuid
+  name                String?
+  email               String               @unique
+  passwordHash        String?              @map("password_hash")
+  avatar              String?
+  provider            String?
+  emailVerifiedAt     DateTime?            @map("email_verified_at")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  memberships         OrganizationMember[]
+  ownedOrganizations  Organization[]       @relation("OrganizationOwner")
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  auditLogs           AuditLog[]           @relation("AuditLogUser")
+  privacyRequests     PrivacyRequest[]
 
   @@map("users")
 }
@@ -145,6 +146,20 @@ model TrackingEvent {
   @@index([websiteId, sessionId, occurredAt])
   @@index([websiteId, eventType, occurredAt])
   @@map("tracking_events")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 model RefreshToken {
