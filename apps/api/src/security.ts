@@ -1,5 +1,6 @@
 import { createCipheriv, randomBytes } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
+import { recordRequest } from "./observability";
 
 const authBuckets = new Map<string, { count: number; resetAt: number }>();
 
@@ -41,12 +42,14 @@ export function createApiSecret() {
 }
 
 export function writeSafeRequestLog(request: Request, response: Response, startedAt: number) {
+  const durationMs = Date.now() - startedAt;
+  recordRequest(durationMs, response.statusCode);
   console.info(JSON.stringify({
     requestId: request.header("x-request-id") ?? randomBytes(8).toString("hex"),
     method: request.method,
     path: request.path,
     status: response.statusCode,
-    durationMs: Date.now() - startedAt,
+    durationMs,
     ip: request.ip,
   }));
 }

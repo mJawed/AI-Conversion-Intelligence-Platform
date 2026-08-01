@@ -17,6 +17,7 @@ import { apiKeyRouter } from "./api-key-routes";
 import { privacyRouter, organizationPrivacyRouter } from "./privacy-routes";
 import { writeSafeRequestLog } from "./security";
 import { trackerScript } from "./tracker";
+import { getObservabilityMetrics } from "./observability";
 
 dotenv.config();
 dotenv.config({ path: "../../.env" });
@@ -63,6 +64,10 @@ app.get("/health/db", async (_request, response) => {
 
 app.get("/health/pipeline", (_request, response) => {
   response.json({ service: "event-pipeline", status: "ok", metrics: getPipelineMetrics(), timestamp: new Date().toISOString() });
+});
+
+app.get("/health/metrics", (_request, response) => {
+  response.json({ service: "api", status: "ok", metrics: getObservabilityMetrics(), timestamp: new Date().toISOString() });
 });
 
 app.get("/ready", async (_request, response) => {

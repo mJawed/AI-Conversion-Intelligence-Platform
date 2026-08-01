@@ -14,6 +14,7 @@
     "smoke:tracker": "node ../../scripts/smoke-tracker.mjs",
     "smoke:free": "node ../../scripts/smoke-free-mvp.mjs",
     "report:free": "node ../../scripts/report-free-usage.mjs",
+    "load:test:health": "node ../../scripts/load-test-health.mjs",
     "db:generate": "prisma generate --schema ../../prisma/schema.prisma",
     "db:validate": "prisma validate --schema ../../prisma/schema.prisma",
     "db:format": "prisma format --schema ../../prisma/schema.prisma",
