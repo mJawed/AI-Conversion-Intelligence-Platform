@@ -1,9 +1,14 @@
 import { Router, type Request, type Response } from "express";
+import { z } from "zod";
 import { requireAuth } from "./auth-routes";
-import { AnalyticsUnavailableError, analyticsQuerySchema, authorizeAnalyticsContext, getBehaviour, getForms, getFunnels, getHeatmaps, getInsights, getOverview, getReplays, getSessions, getVisitors, normalizeAnalyticsQuery } from "./analytics-service";
+import { AnalyticsUnavailableError, analyticsQuerySchema, authorizeAnalyticsContext, getBehaviour, getForms, getFunnels, getHeatmaps, getInsights, getLiveTracking, getOverview, getReplays, getSessions, getVisitors, normalizeAnalyticsQuery } from "./analytics-service";
 
 export const analyticsRouter = Router();
 analyticsRouter.use(requireAuth);
+
+const liveQuerySchema = analyticsQuerySchema.pick({ organizationId: true, websiteId: true, limit: true }).extend({
+  windowSeconds: z.coerce.number().int().min(30).max(900).default(300),
+});
 
 function getContext(request: Request, response: Response) {
   const parsed = analyticsQuerySchema.safeParse(request.query);
@@ -31,6 +36,23 @@ async function run(request: Request, response: Response, query: (context: Return
 }
 
 analyticsRouter.get("/overview", (request, response) => run(request, response, getOverview));
+analyticsRouter.get("/live", async (request, response) => {
+  const parsed = liveQuerySchema.safeParse(request.query);
+  if (!parsed.success) { response.status(400).json({ error: "INVALID_LIVE_QUERY", details: parsed.error.flatten() }); return; }
+  try {
+    const now = new Date();
+    const context = normalizeAnalyticsQuery({ ...parsed.data, from: new Date(now.getTime() - parsed.data.windowSeconds * 1000).toISOString(), to: now.toISOString(), offset: 0 });
+    await authorizeAnalyticsContext(context, request.authUserId!);
+    response.json(await getLiveTracking(context, parsed.data.windowSeconds));
+  } catch (error) {
+    if (error instanceof Error && error.message === "ANALYTICS_ACCESS_DENIED") { response.status(403).json({ error: "ANALYTICS_ACCESS_DENIED" }); return; }
+    if (error instanceof Error && error.message === "ORGANIZATION_INACTIVE") { response.status(403).json({ error: "ORGANIZATION_INACTIVE" }); return; }
+    if (error instanceof Error && error.message === "WEBSITE_NOT_FOUND") { response.status(404).json({ error: "WEBSITE_NOT_FOUND" }); return; }
+    if (error instanceof AnalyticsUnavailableError) { response.status(503).json({ error: "ANALYTICS_UNAVAILABLE", message: error.message }); return; }
+    console.error("Live analytics request failed", error);
+    response.status(500).json({ error: "LIVE_ANALYTICS_FAILED" });
+  }
+});
 analyticsRouter.get("/visitors", (request, response) => run(request, response, getVisitors));
 analyticsRouter.get("/sessions", (request, response) => run(request, response, getSessions));
 analyticsRouter.get("/forms", (request, response) => run(request, response, getForms));

@@ -80,6 +80,22 @@ export async function getOverview(context: AnalyticsContext) {
   return { range: { from: context.from, to: context.to }, metrics: { ...summary, conversionRate: Number(summary.visitors) ? Number(((Number(summary.conversions) / Number(summary.visitors)) * 100).toFixed(2)) : 0 }, topPages, traffic };
 }
 
+export async function getLiveTracking(context: AnalyticsContext, windowSeconds: number) {
+  const cutoff = new Date(Date.now() - windowSeconds * 1000);
+  const [activeRows, events] = await Promise.all([
+    queryPostgres<{ active_visitors: number }>(Prisma.sql`SELECT COUNT(DISTINCT visitor_id)::int AS active_visitors FROM tracking_events WHERE website_id = ${context.websiteId}::uuid AND occurred_at >= ${cutoff}`),
+    queryPostgres<{ event_id: string; event_type: string; occurred_at: Date; visitor_id: string; path: string }>(Prisma.sql`SELECT event_id, event_type, occurred_at, visitor_id, split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) AS path FROM tracking_events WHERE website_id = ${context.websiteId}::uuid AND occurred_at >= ${cutoff} ORDER BY occurred_at DESC LIMIT ${context.limit}`),
+  ]);
+  return {
+    live: {
+      activeVisitors: Number(activeRows[0]?.active_visitors ?? 0),
+      recentEvents: events.map((event) => ({ eventId: event.event_id, eventType: event.event_type, occurredAt: iso(event.occurred_at), visitorId: event.visitor_id, path: event.path || "/" })),
+      lastUpdatedAt: new Date().toISOString(),
+      activityWindowSeconds: windowSeconds,
+    },
+  };
+}
+
 export async function getVisitors(context: AnalyticsContext) {
   const rows = await queryPostgres<{ visitor_id: string; last_seen: Date; sessions: number; events: number; conversions: number; current_page: string }>(Prisma.sql`WITH grouped AS (SELECT visitor_id, MAX(occurred_at) AS last_seen, COUNT(DISTINCT session_id)::int AS sessions, COUNT(*)::int AS events, COUNT(*) FILTER (WHERE event_type = 'conversion')::int AS conversions FROM tracking_events WHERE ${eventWhere(context)} GROUP BY visitor_id), latest AS (SELECT DISTINCT ON (visitor_id) visitor_id, url AS current_page FROM tracking_events WHERE ${eventWhere(context)} ORDER BY visitor_id, occurred_at DESC) SELECT grouped.visitor_id, grouped.last_seen, grouped.sessions, grouped.events, grouped.conversions, latest.current_page FROM grouped JOIN latest USING (visitor_id) ORDER BY grouped.last_seen DESC ${pagination(context)}`);
   return { visitors: rows.map((row) => ({ ...row, last_seen: iso(row.last_seen) })), pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
