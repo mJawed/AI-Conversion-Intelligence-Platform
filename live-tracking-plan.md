@@ -65,6 +65,13 @@ The first API implementation is being added at `GET /api/v1/analytics/live`.
 
 ## Phase 3 — Polling and freshness behavior
 
+**Status:** Complete as a resilient polling foundation
+
+- Prevented overlapping live requests.
+- Paused refresh while the tab is hidden and resumed on visibility.
+- Stopped polling after three consecutive failures and exposed manual retry.
+- Added stale status when the last live response can no longer be refreshed.
+
 - Poll every 15 seconds while the page is visible.
 - Pause polling when the browser tab is hidden.
 - Refresh immediately when the tab becomes visible again.

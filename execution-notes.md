@@ -1525,3 +1525,12 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added visible loading, empty, unavailable, and retry states while preserving mock mode.
 - Added a 15-second visible-tab refresh loop and pause/resume behavior for hidden tabs.
 - Dashboard typecheck/lint/build and API unit tests passed.
+## Live Tracking Phase 3 — Polling reliability and freshness
+
+**Status:** Complete as a resilient polling foundation
+
+- Prevented overlapping live activity requests.
+- Paused polling for hidden tabs and resumed with an immediate refresh when visible.
+- Stopped polling after three consecutive failures and added manual retry recovery.
+- Added clear stale status and reconnect messaging for previously loaded live data.
+- Dashboard typecheck, lint, and production build passed.
