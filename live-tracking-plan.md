@@ -96,6 +96,12 @@ The first API implementation is being added at `GET /api/v1/analytics/live`.
 
 ## Phase 5 — Testing and verification
 
+**Status:** Complete as an automated contract and verification foundation
+
+- Added automated bounded-query and privacy-shape contract tests.
+- Verified live API/dashboard builds and the beta stack check path.
+- Documented real-site verification and event-window checks below.
+
 - Add API tests for tenant isolation, website filtering, activity-window boundaries, and empty results.
 - Add dashboard tests for polling, pause/resume, stale state, and retry behavior.
 - Verify events appear after a real website page view and CTA click.

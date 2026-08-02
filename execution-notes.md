@@ -1542,3 +1542,11 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added no-store response headers, bounded payloads, and a 30-request-per-minute per-user/website live polling limit.
 - Preserved tenant authorization, indexed time-window queries, and existing retention/masking behavior.
 - API/dashboard typecheck, lint, build, and API tests passed.
+## Live Tracking Phase 5 — Testing and verification
+
+**Status:** Complete as an automated contract and verification foundation
+
+- Added live-query bound tests for the 50-event maximum and 30–900 second activity window.
+- Added a privacy contract test confirming live activity objects exclude visitor identifiers.
+- Verified the full API/dashboard build, lint, typecheck, and API test suite.
+- Real-site event comparison remains a beta operation using `PRIVATE-BETA.md` and the deployed beta check command.
