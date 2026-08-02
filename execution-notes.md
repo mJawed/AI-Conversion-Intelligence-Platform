@@ -1516,3 +1516,12 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added privacy-safe recent event metadata with a configurable result limit.
 - Added the dashboard API client contract for the live tracking response.
 - API/dashboard typechecks, builds, lint, and the 14 API unit tests passed.
+## Live Tracking Phase 2 — Dashboard live widgets
+
+**Status:** Complete as a live activity widget foundation
+
+- Connected the Overview page to the authenticated live analytics client.
+- Added active visitor count, recent event activity, privacy-safe paths, activity window, and last-updated status.
+- Added visible loading, empty, unavailable, and retry states while preserving mock mode.
+- Added a 15-second visible-tab refresh loop and pause/resume behavior for hidden tabs.
+- Dashboard typecheck/lint/build and API unit tests passed.

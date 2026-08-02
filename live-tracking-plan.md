@@ -50,6 +50,12 @@ The first API implementation is being added at `GET /api/v1/analytics/live`.
 
 ## Phase 2 — Dashboard live widgets
 
+**Status:** Complete as a live activity widget foundation
+
+- Connected Overview to `GET /api/v1/analytics/live`.
+- Added live visitor count, recent activity rows, activity window, and last-updated label.
+- Added loading, empty, unavailable, and retry states.
+
 - Replace the current “Realtime tracking is not enabled” state when live data is available.
 - Add active visitor count to Overview.
 - Add a recent activity feed with page views, clicks, forms, and conversions.
