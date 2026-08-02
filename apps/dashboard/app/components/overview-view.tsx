@@ -6,7 +6,7 @@ import { DashboardShell, EmptyState, PageHeader } from "./dashboard-shell";
 import { InsightPreview, RealtimeCard, TopPages, TrafficChart } from "./overview-widgets";
 import { ErrorState, LoadingState } from "./ui";
 import { insightPreviews, overviewMetrics, topPages, trafficTrend, type InsightPreview as InsightPreviewType, type Metric, type TopPage, type TrendPoint } from "../data/mock";
-import { getAuthenticatedAnalytics } from "../lib/api-client";
+import { getAuthenticatedAnalytics, getLiveTracking, type LiveTracking } from "../lib/api-client";
 import { useAccount, useMockData } from "../lib/account-context";
 
 type OverviewResponse = {
@@ -28,14 +28,14 @@ function formatPercent(value: number | null | undefined) { return value === null
 function formatDuration(seconds: number | null | undefined) { if (seconds === null || seconds === undefined) return "—"; const minutes = Math.floor(seconds / 60).toString().padStart(2, "0"); return `${minutes}:${Math.round(seconds % 60).toString().padStart(2, "0")}`; }
 function formatDay(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
 
-function liveMetrics(data: OverviewResponse): Metric[] {
+function liveMetrics(data: OverviewResponse, live: LiveTracking["live"] | null): Metric[] {
   return [
     { label: "Visitors", value: formatNumber(Number(data.metrics.visitors)), detail: "Unique visitors this period", change: "Live", tone: "neutral" },
     { label: "Sessions", value: formatNumber(Number(data.metrics.sessions)), detail: "Total sessions this period", change: "Live", tone: "neutral" },
     { label: "Conversion rate", value: formatPercent(Number(data.metrics.conversionRate)), detail: "Recorded conversion events", change: "Live", tone: "neutral" },
     { label: "Avg. session", value: formatDuration(data.metrics.avgSessionSeconds), detail: "Average session duration", change: data.metrics.avgSessionSeconds === null || data.metrics.avgSessionSeconds === undefined ? "Not available" : "Live", tone: "neutral" },
     { label: "Bounce rate", value: formatPercent(data.metrics.bounceRate), detail: "Single-event sessions", change: data.metrics.bounceRate === null || data.metrics.bounceRate === undefined ? "Not available" : "Live", tone: "neutral" },
-    { label: "Live visitors", value: "—", detail: "Realtime tracking is not enabled", change: "Coming soon", tone: "neutral" },
+    { label: "Live visitors", value: live ? formatNumber(live.activeVisitors) : "—", detail: live ? "Visitors active in the last 5 minutes" : "Realtime activity unavailable", change: live ? "Live" : "Unavailable", tone: "neutral" },
   ];
 }
 
@@ -46,6 +46,10 @@ export function OverviewView() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(!useMockData);
   const [retryKey, setRetryKey] = useState(0);
+  const [live, setLive] = useState<LiveTracking["live"] | null>(null);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [liveLoading, setLiveLoading] = useState(!useMockData);
+  const [liveRetryKey, setLiveRetryKey] = useState(0);
   const selectedRange = ranges.find((range) => range.days === rangeDays) ?? ranges[1];
 
   useEffect(() => {
@@ -66,7 +70,34 @@ export function OverviewView() {
     return () => { cancelled = true; };
   }, [account.selectedOrganization, account.selectedWebsite, account.tokens, rangeDays, retryKey]);
 
-  const metrics = useMockData ? overviewMetrics : data ? liveMetrics(data) : [];
+  useEffect(() => {
+    if (useMockData || !account.tokens?.accessToken || !account.selectedOrganization || !account.selectedWebsite) {
+      setLive(null);
+      setLiveLoading(false);
+      return;
+    }
+    let cancelled = false;
+    let firstRequest = true;
+    const loadLive = async () => {
+      if (firstRequest) setLiveLoading(true);
+      setLiveError(null);
+      try {
+        const result = await getLiveTracking(account.tokens!.accessToken, { organizationId: account.selectedOrganization!.id, websiteId: account.selectedWebsite!.id });
+        if (!cancelled) setLive(result.live);
+      } catch (requestError) {
+        if (!cancelled) setLiveError(requestError instanceof Error ? requestError.message : "Could not load live activity.");
+      } finally {
+        if (!cancelled) { firstRequest = false; setLiveLoading(false); }
+      }
+    };
+    const onVisibilityChange = () => { if (document.visibilityState === "visible") void loadLive(); };
+    void loadLive();
+    const interval = window.setInterval(() => { if (document.visibilityState === "visible") void loadLive(); }, 15000);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => { cancelled = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", onVisibilityChange); };
+  }, [account.selectedOrganization, account.selectedWebsite, account.tokens, liveRetryKey]);
+
+  const metrics = useMockData ? overviewMetrics : data ? liveMetrics(data, live) : [];
   const points: TrendPoint[] = useMockData ? trafficTrend : (data?.traffic ?? []).map((point) => ({ label: formatDay(point.day), value: Number(point.visitors) }));
   const pages: TopPage[] = useMockData ? topPages : (data?.topPages ?? []).map((page) => ({ path: page.path, visitors: formatNumber(Number(page.visitors)), share: `${Number(page.share).toFixed(1)}%` }));
   const insights: InsightPreviewType[] = useMockData ? insightPreviews : [];
@@ -82,11 +113,11 @@ export function OverviewView() {
     if (!useMockData && isEmpty) return <EmptyState title="No visitor data for this period" description="Once your tracking script receives events, your visitors, sessions, and conversion signals will appear here." action={<Link className="button button-dark" href="/settings">Check installation</Link>} />;
     return <>
       <div className="metrics">{metrics.map((metric) => <article className="metric" key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong><p>{metric.detail} <span className={`metric-change ${metric.tone ?? "neutral"}`}>{metric.change}</span></p></article>)}</div>
-      <div className="overview-grid"><TrafficChart points={points} /><RealtimeCard available={useMockData} /></div>
+      <div className="overview-grid"><TrafficChart points={points} /><RealtimeCard available live={live} loading={liveLoading} error={liveError} onRetry={() => setLiveRetryKey((key) => key + 1)} /></div>
       <div className="overview-grid lower-grid"><TopPages pages={pages} /><InsightPreview insights={insights} empty={!useMockData} /></div>
       <div className="setup-reminder"><div><strong>Want to connect another website?</strong><p>Install the tracking SDK and start collecting conversion signals.</p></div><Link className="button button-dark" href="/onboarding">＋ Add website</Link></div>
     </>;
-  }, [account, data, error, hasLiveData, insights, isEmpty, isLoading, metrics, pages, points, useMockData]);
+  }, [account, data, error, hasLiveData, insights, isEmpty, isLoading, live, liveError, liveLoading, metrics, pages, points, useMockData]);
 
   return <DashboardShell><PageHeader action={<Link className="button" href="/onboarding">＋ Add website</Link>} /><div className="section-heading"><div><p className="eyebrow">Overview</p><h2>Your growth signals</h2></div><div className="filters"><label className="sr-only" htmlFor="overview-website">Website</label><select id="overview-website" className="website-pill" value={account.selectedWebsite?.id ?? ""} onChange={(event) => account.selectWebsite(event.target.value)} disabled={useMockData || account.websites.length === 0}><option value="">{websiteLabel}</option>{account.websites.map((website) => <option key={website.id} value={website.id}>{website.name}</option>)}</select><label className="sr-only" htmlFor="overview-range">Date range</label><select id="overview-range" className="date-pill" value={rangeDays} onChange={(event) => setRangeDays(Number(event.target.value))}><option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option></select></div></div>{useMockData && <p className="mock-notice">Demo data is enabled. Set <code>NEXT_PUBLIC_USE_MOCK_DATA=false</code> to view live analytics.</p>}{dashboardContent}</DashboardShell>;
 }
