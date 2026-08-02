@@ -1507,3 +1507,12 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added `PRIVATE-BETA.md` with the real-site onboarding protocol, source-analytics comparison guidance, activation and retention baselines, insight usefulness review, issue severity, and exit criteria.
 - Added `beta:check` to verify the deployed API, database readiness, observability endpoint, dashboard routes, tracker script, and optionally one synthetic tracking event.
 - Real websites, cohort measurements, and beta feedback require participating sites and will be recorded during the next validation cycle.
+## Live Tracking Phase 1 — Live activity API
+
+**Status:** Complete as an authenticated live-analytics API foundation
+
+- Added `GET /api/v1/analytics/live` with organization and website authorization.
+- Added active visitor counts over a bounded 30–900 second activity window.
+- Added privacy-safe recent event metadata with a configurable result limit.
+- Added the dashboard API client contract for the live tracking response.
+- API/dashboard typechecks, builds, lint, and the 14 API unit tests passed.
