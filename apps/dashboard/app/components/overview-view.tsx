@@ -49,6 +49,7 @@ export function OverviewView() {
   const [live, setLive] = useState<LiveTracking["live"] | null>(null);
   const [liveError, setLiveError] = useState<string | null>(null);
   const [liveLoading, setLiveLoading] = useState(!useMockData);
+  const [liveStale, setLiveStale] = useState(false);
   const [liveRetryKey, setLiveRetryKey] = useState(0);
   const selectedRange = ranges.find((range) => range.days === rangeDays) ?? ranges[1];
 
@@ -74,23 +75,39 @@ export function OverviewView() {
     if (useMockData || !account.tokens?.accessToken || !account.selectedOrganization || !account.selectedWebsite) {
       setLive(null);
       setLiveLoading(false);
+      setLiveStale(false);
       return;
     }
     let cancelled = false;
     let firstRequest = true;
+    let inFlight = false;
+    let consecutiveFailures = 0;
+    let pollingStopped = false;
     const loadLive = async () => {
+      if (inFlight || pollingStopped || document.visibilityState !== "visible") return;
+      inFlight = true;
       if (firstRequest) setLiveLoading(true);
       setLiveError(null);
       try {
         const result = await getLiveTracking(account.tokens!.accessToken, { organizationId: account.selectedOrganization!.id, websiteId: account.selectedWebsite!.id });
-        if (!cancelled) setLive(result.live);
+        if (!cancelled) { consecutiveFailures = 0; setLive(result.live); setLiveStale(false); }
       } catch (requestError) {
-        if (!cancelled) setLiveError(requestError instanceof Error ? requestError.message : "Could not load live activity.");
+        consecutiveFailures += 1;
+        if (!cancelled) {
+          setLiveError(requestError instanceof Error ? requestError.message : "Could not load live activity.");
+          if (consecutiveFailures >= 3) { pollingStopped = true; setLiveStale(true); }
+        }
       } finally {
+        inFlight = false;
         if (!cancelled) { firstRequest = false; setLiveLoading(false); }
       }
     };
-    const onVisibilityChange = () => { if (document.visibilityState === "visible") void loadLive(); };
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+      pollingStopped = false;
+      consecutiveFailures = 0;
+      void loadLive();
+    };
     void loadLive();
     const interval = window.setInterval(() => { if (document.visibilityState === "visible") void loadLive(); }, 15000);
     document.addEventListener("visibilitychange", onVisibilityChange);
@@ -113,11 +130,11 @@ export function OverviewView() {
     if (!useMockData && isEmpty) return <EmptyState title="No visitor data for this period" description="Once your tracking script receives events, your visitors, sessions, and conversion signals will appear here." action={<Link className="button button-dark" href="/settings">Check installation</Link>} />;
     return <>
       <div className="metrics">{metrics.map((metric) => <article className="metric" key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong><p>{metric.detail} <span className={`metric-change ${metric.tone ?? "neutral"}`}>{metric.change}</span></p></article>)}</div>
-      <div className="overview-grid"><TrafficChart points={points} /><RealtimeCard available live={live} loading={liveLoading} error={liveError} onRetry={() => setLiveRetryKey((key) => key + 1)} /></div>
+      <div className="overview-grid"><TrafficChart points={points} /><RealtimeCard available live={live} loading={liveLoading} error={liveError} stale={liveStale} onRetry={() => setLiveRetryKey((key) => key + 1)} /></div>
       <div className="overview-grid lower-grid"><TopPages pages={pages} /><InsightPreview insights={insights} empty={!useMockData} /></div>
       <div className="setup-reminder"><div><strong>Want to connect another website?</strong><p>Install the tracking SDK and start collecting conversion signals.</p></div><Link className="button button-dark" href="/onboarding">＋ Add website</Link></div>
     </>;
-  }, [account, data, error, hasLiveData, insights, isEmpty, isLoading, live, liveError, liveLoading, metrics, pages, points, useMockData]);
+  }, [account, data, error, hasLiveData, insights, isEmpty, isLoading, live, liveError, liveLoading, liveStale, metrics, pages, points, useMockData]);
 
   return <DashboardShell><PageHeader action={<Link className="button" href="/onboarding">＋ Add website</Link>} /><div className="section-heading"><div><p className="eyebrow">Overview</p><h2>Your growth signals</h2></div><div className="filters"><label className="sr-only" htmlFor="overview-website">Website</label><select id="overview-website" className="website-pill" value={account.selectedWebsite?.id ?? ""} onChange={(event) => account.selectWebsite(event.target.value)} disabled={useMockData || account.websites.length === 0}><option value="">{websiteLabel}</option>{account.websites.map((website) => <option key={website.id} value={website.id}>{website.name}</option>)}</select><label className="sr-only" htmlFor="overview-range">Date range</label><select id="overview-range" className="date-pill" value={rangeDays} onChange={(event) => setRangeDays(Number(event.target.value))}><option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option></select></div></div>{useMockData && <p className="mock-notice">Demo data is enabled. Set <code>NEXT_PUBLIC_USE_MOCK_DATA=false</code> to view live analytics.</p>}{dashboardContent}</DashboardShell>;
 }

@@ -26,7 +26,7 @@ export function TrafficChart({ points }: Readonly<{ points: TrendPoint[] }>) {
   );
 }
 
-export function RealtimeCard({ available = true, live, loading = false, error, onRetry }: Readonly<{ available?: boolean; live?: LiveTracking["live"] | null; loading?: boolean; error?: string | null; onRetry?: () => void }>) {
+export function RealtimeCard({ available = true, live, loading = false, error, stale = false, onRetry }: Readonly<{ available?: boolean; live?: LiveTracking["live"] | null; loading?: boolean; error?: string | null; stale?: boolean; onRetry?: () => void }>) {
   const activeVisitors = live?.activeVisitors ?? 0;
   const width = Math.min(100, Math.max(0, activeVisitors * 2));
   const recentEvents = live?.recentEvents.slice(0, 4) ?? [];
@@ -34,11 +34,11 @@ export function RealtimeCard({ available = true, live, loading = false, error, o
   const updatedLabel = updatedAt && !Number.isNaN(updatedAt.getTime()) ? `Updated ${updatedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Waiting for data";
   return (
     <section className="widget realtime-widget" aria-labelledby="realtime-heading">
-      <div className="widget-heading"><div><p className="eyebrow">Realtime</p><h2 id="realtime-heading">Active visitors</h2></div><span className={`live-label${live ? "" : " live-label-muted"}`}><i /> {live ? "Live" : "Waiting"}</span></div>
+      <div className="widget-heading"><div><p className="eyebrow">Realtime</p><h2 id="realtime-heading">Active visitors</h2></div><span className={`live-label${live && !stale ? "" : " live-label-muted"}`}><i /> {live ? (stale ? "Stale" : "Live") : "Waiting"}</span></div>
       {loading && !live ? <div className="realtime-loading">Loading live activity…</div> : error && !live ? <div className="realtime-error"><span>{error}</span>{onRetry && <button className="text-link realtime-retry" onClick={onRetry} type="button">Retry</button>}</div> : <>
         <div className="realtime-number">{available ? (live ? activeVisitors : "37") : "—"} <span>visitors</span></div>
         <div className="realtime-bar"><span style={{ width: available ? (live ? `${width}%` : "67%") : "0%" }} /></div>
-        <div className="realtime-meta"><span>{live ? updatedLabel : available ? "67% on mobile" : "Realtime endpoint pending"}</span><span>{live ? `${live.activityWindowSeconds / 60} min window` : available ? "Peak: 52" : ""}</span></div>
+        <div className="realtime-meta"><span>{live ? (stale ? "Updates paused — retry to reconnect" : updatedLabel) : available ? "67% on mobile" : "Realtime endpoint pending"}</span><span>{live ? `${live.activityWindowSeconds / 60} min window` : available ? "Peak: 52" : ""}</span></div>
         {live && recentEvents.length > 0 ? <div className="current-pages">{recentEvents.map((event) => <div key={event.eventId}><span className="page-dot" /> <span className="realtime-event-type">{event.eventType.replaceAll("_", " ")}</span> {event.path} <strong>{new Date(event.occurredAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</strong></div>)}</div> : live ? <p className="widget-empty">No visitor activity in the last {live.activityWindowSeconds / 60} minutes.</p> : available && <div className="current-pages"><div><span className="page-dot" /> /pricing <strong>14</strong></div><div><span className="page-dot" /> / <strong>9</strong></div><div><span className="page-dot" /> /features <strong>7</strong></div></div>}
       </>}
     </section>
