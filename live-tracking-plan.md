@@ -81,6 +81,12 @@ The first API implementation is being added at `GET /api/v1/analytics/live`.
 
 ## Phase 4 — Privacy and performance safeguards
 
+**Status:** Complete as a privacy and performance foundation
+
+- Removed pseudonymous visitor identifiers from recent live activity responses.
+- Added response caps, no-store caching, and a per-user website polling limit.
+- Reused tenant authorization, retention, and privacy-safe URL handling.
+
 - Never expose email addresses, form values, passwords, tokens, or visible text.
 - Reuse the existing URL and property masking rules.
 - Return only aggregate active visitor counts and limited recent activity.

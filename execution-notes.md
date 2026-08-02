@@ -1534,3 +1534,11 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Stopped polling after three consecutive failures and added manual retry recovery.
 - Added clear stale status and reconnect messaging for previously loaded live data.
 - Dashboard typecheck, lint, and production build passed.
+## Live Tracking Phase 4 — Privacy and performance safeguards
+
+**Status:** Complete as a privacy and performance foundation
+
+- Removed visitor identifiers from the live activity response; the dashboard only receives event type, timestamp, and safe page path.
+- Added no-store response headers, bounded payloads, and a 30-request-per-minute per-user/website live polling limit.
+- Preserved tenant authorization, indexed time-window queries, and existing retention/masking behavior.
+- API/dashboard typecheck, lint, build, and API tests passed.
