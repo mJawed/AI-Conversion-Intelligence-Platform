@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { eventSchema, maskUrl, maskValue, publicEventSummary, toTrackingEventData } from "../../src/collector-routes";
-import { analyticsQuerySchema, normalizeAnalyticsQuery } from "../../src/analytics-service";
+import { analyticsQuerySchema, liveAnalyticsQuerySchema, normalizeAnalyticsQuery, toLiveEvent } from "../../src/analytics-service";
 import { encryptSecret } from "../../src/security";
 import { getTrackingVerificationStatus, normalizeDomain } from "../../src/website-routes";
 import { WebsiteStatus } from "@prisma/client";
@@ -30,6 +30,17 @@ test("normalizes analytics ranges and pagination", () => {
   assert.equal(context.limit, 10);
   assert.equal(context.offset, 5);
   assert.ok(new Date(context.from) < new Date(context.to));
+});
+
+test("keeps live tracking queries bounded and privacy-safe", () => {
+  const query = liveAnalyticsQuerySchema.parse({ organizationId: "00000000-0000-0000-0000-000000000001", websiteId: "00000000-0000-0000-0000-000000000002" });
+  assert.equal(query.limit, 25);
+  assert.equal(query.windowSeconds, 300);
+  assert.throws(() => liveAnalyticsQuerySchema.parse({ ...query, limit: 51 }));
+  assert.throws(() => liveAnalyticsQuerySchema.parse({ ...query, windowSeconds: 20 }));
+  const event = toLiveEvent({ event_id: "evt_1", event_type: "page_view", occurred_at: "2026-08-03T00:00:00.000Z", path: "/pricing" });
+  assert.deepEqual(event, { eventId: "evt_1", eventType: "page_view", occurredAt: "2026-08-03T00:00:00.000Z", path: "/pricing" });
+  assert.equal("visitorId" in event, false);
 });
 
 test("encrypts API secrets without storing plaintext", () => {

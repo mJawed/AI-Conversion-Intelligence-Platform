@@ -1,15 +1,10 @@
 import { Router, type Request, type Response } from "express";
-import { z } from "zod";
 import { requireAuth } from "./auth-routes";
-import { AnalyticsUnavailableError, analyticsQuerySchema, authorizeAnalyticsContext, getBehaviour, getForms, getFunnels, getHeatmaps, getInsights, getLiveTracking, getOverview, getReplays, getSessions, getVisitors, normalizeAnalyticsQuery } from "./analytics-service";
+import { AnalyticsUnavailableError, analyticsQuerySchema, authorizeAnalyticsContext, getBehaviour, getForms, getFunnels, getHeatmaps, getInsights, getLiveTracking, getOverview, getReplays, getSessions, getVisitors, liveAnalyticsQuerySchema, normalizeAnalyticsQuery } from "./analytics-service";
 
 export const analyticsRouter = Router();
 analyticsRouter.use(requireAuth);
 
-const liveQuerySchema = analyticsQuerySchema.pick({ organizationId: true, websiteId: true }).extend({
-  limit: z.coerce.number().int().min(1).max(50).default(25),
-  windowSeconds: z.coerce.number().int().min(30).max(900).default(300),
-});
 const liveRateBuckets = new Map<string, { count: number; resetAt: number }>();
 
 function checkLiveRateLimit(key: string) {
@@ -50,7 +45,7 @@ async function run(request: Request, response: Response, query: (context: Return
 
 analyticsRouter.get("/overview", (request, response) => run(request, response, getOverview));
 analyticsRouter.get("/live", async (request, response) => {
-  const parsed = liveQuerySchema.safeParse(request.query);
+  const parsed = liveAnalyticsQuerySchema.safeParse(request.query);
   if (!parsed.success) { response.status(400).json({ error: "INVALID_LIVE_QUERY", details: parsed.error.flatten() }); return; }
   const rate = checkLiveRateLimit(`${request.authUserId}:${parsed.data.organizationId}:${parsed.data.websiteId}`);
   if (!rate.allowed) { response.setHeader("Retry-After", String(rate.retryAfterSeconds)); response.status(429).json({ error: "LIVE_RATE_LIMITED", retryAfterSeconds: rate.retryAfterSeconds }); return; }

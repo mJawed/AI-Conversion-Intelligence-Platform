@@ -11,6 +11,10 @@ export const analyticsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).max(10000).default(0),
   sort: z.string().trim().max(40).optional(),
 });
+export const liveAnalyticsQuerySchema = analyticsQuerySchema.pick({ organizationId: true, websiteId: true }).extend({
+  limit: z.coerce.number().int().min(1).max(50).default(25),
+  windowSeconds: z.coerce.number().int().min(30).max(900).default(300),
+});
 
 export type AnalyticsQuery = z.infer<typeof analyticsQuerySchema>;
 export type AnalyticsContext = { organizationId: string; websiteId: string; from: string; to: string; limit: number; offset: number; sort?: string };
@@ -69,6 +73,10 @@ function iso(value: Date | string) {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
+export function toLiveEvent(event: { event_id: string; event_type: string; occurred_at: Date | string; path: string | null }) {
+  return { eventId: event.event_id, eventType: event.event_type, occurredAt: iso(event.occurred_at), path: event.path || "/" };
+}
+
 export async function getOverview(context: AnalyticsContext) {
   const where = eventWhere(context);
   const [metrics, topPages, traffic] = await Promise.all([
@@ -89,7 +97,7 @@ export async function getLiveTracking(context: AnalyticsContext, windowSeconds: 
   return {
     live: {
       activeVisitors: Number(activeRows[0]?.active_visitors ?? 0),
-      recentEvents: events.map((event) => ({ eventId: event.event_id, eventType: event.event_type, occurredAt: iso(event.occurred_at), path: event.path || "/" })),
+      recentEvents: events.map(toLiveEvent),
       lastUpdatedAt: new Date().toISOString(),
       activityWindowSeconds: windowSeconds,
     },
