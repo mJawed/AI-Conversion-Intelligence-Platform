@@ -84,12 +84,12 @@ export async function getLiveTracking(context: AnalyticsContext, windowSeconds: 
   const cutoff = new Date(Date.now() - windowSeconds * 1000);
   const [activeRows, events] = await Promise.all([
     queryPostgres<{ active_visitors: number }>(Prisma.sql`SELECT COUNT(DISTINCT visitor_id)::int AS active_visitors FROM tracking_events WHERE website_id = ${context.websiteId}::uuid AND occurred_at >= ${cutoff}`),
-    queryPostgres<{ event_id: string; event_type: string; occurred_at: Date; visitor_id: string; path: string }>(Prisma.sql`SELECT event_id, event_type, occurred_at, visitor_id, split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) AS path FROM tracking_events WHERE website_id = ${context.websiteId}::uuid AND occurred_at >= ${cutoff} ORDER BY occurred_at DESC LIMIT ${context.limit}`),
+    queryPostgres<{ event_id: string; event_type: string; occurred_at: Date; path: string }>(Prisma.sql`SELECT event_id, event_type, occurred_at, split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) AS path FROM tracking_events WHERE website_id = ${context.websiteId}::uuid AND occurred_at >= ${cutoff} ORDER BY occurred_at DESC LIMIT ${context.limit}`),
   ]);
   return {
     live: {
       activeVisitors: Number(activeRows[0]?.active_visitors ?? 0),
-      recentEvents: events.map((event) => ({ eventId: event.event_id, eventType: event.event_type, occurredAt: iso(event.occurred_at), visitorId: event.visitor_id, path: event.path || "/" })),
+      recentEvents: events.map((event) => ({ eventId: event.event_id, eventType: event.event_type, occurredAt: iso(event.occurred_at), path: event.path || "/" })),
       lastUpdatedAt: new Date().toISOString(),
       activityWindowSeconds: windowSeconds,
     },

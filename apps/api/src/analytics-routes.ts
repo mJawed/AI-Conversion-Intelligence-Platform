@@ -6,9 +6,22 @@ import { AnalyticsUnavailableError, analyticsQuerySchema, authorizeAnalyticsCont
 export const analyticsRouter = Router();
 analyticsRouter.use(requireAuth);
 
-const liveQuerySchema = analyticsQuerySchema.pick({ organizationId: true, websiteId: true, limit: true }).extend({
+const liveQuerySchema = analyticsQuerySchema.pick({ organizationId: true, websiteId: true }).extend({
+  limit: z.coerce.number().int().min(1).max(50).default(25),
   windowSeconds: z.coerce.number().int().min(30).max(900).default(300),
 });
+const liveRateBuckets = new Map<string, { count: number; resetAt: number }>();
+
+function checkLiveRateLimit(key: string) {
+  const now = Date.now();
+  const current = liveRateBuckets.get(key);
+  if (!current || current.resetAt <= now) {
+    liveRateBuckets.set(key, { count: 1, resetAt: now + 60_000 });
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+  current.count += 1;
+  return { allowed: current.count <= 30, retryAfterSeconds: Math.ceil((current.resetAt - now) / 1000) };
+}
 
 function getContext(request: Request, response: Response) {
   const parsed = analyticsQuerySchema.safeParse(request.query);
@@ -39,6 +52,9 @@ analyticsRouter.get("/overview", (request, response) => run(request, response, g
 analyticsRouter.get("/live", async (request, response) => {
   const parsed = liveQuerySchema.safeParse(request.query);
   if (!parsed.success) { response.status(400).json({ error: "INVALID_LIVE_QUERY", details: parsed.error.flatten() }); return; }
+  const rate = checkLiveRateLimit(`${request.authUserId}:${parsed.data.organizationId}:${parsed.data.websiteId}`);
+  if (!rate.allowed) { response.setHeader("Retry-After", String(rate.retryAfterSeconds)); response.status(429).json({ error: "LIVE_RATE_LIMITED", retryAfterSeconds: rate.retryAfterSeconds }); return; }
+  response.setHeader("Cache-Control", "no-store");
   try {
     const now = new Date();
     const context = normalizeAnalyticsQuery({ ...parsed.data, from: new Date(now.getTime() - parsed.data.windowSeconds * 1000).toISOString(), to: now.toISOString(), offset: 0 });

@@ -63,7 +63,7 @@ export function getAuthenticatedAnalytics<T>(resource: string, accessToken: stri
   return authenticatedRequest<T>(`/api/v1/analytics/${resource}${search}`, accessToken);
 }
 
-export type LiveTracking = { live: { activeVisitors: number; recentEvents: Array<{ eventId: string; eventType: string; occurredAt: string; visitorId: string; path: string }>; lastUpdatedAt: string; activityWindowSeconds: number } };
+export type LiveTracking = { live: { activeVisitors: number; recentEvents: Array<{ eventId: string; eventType: string; occurredAt: string; path: string }>; lastUpdatedAt: string; activityWindowSeconds: number } };
 
 export function getLiveTracking(accessToken: string, query: { organizationId: string; websiteId: string; limit?: number; windowSeconds?: number }) {
   const search = new URLSearchParams({ organizationId: query.organizationId, websiteId: query.websiteId, limit: String(query.limit ?? 25), windowSeconds: String(query.windowSeconds ?? 300) });
