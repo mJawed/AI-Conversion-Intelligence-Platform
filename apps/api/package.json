@@ -27,7 +27,7 @@
     "db:migrate:tracking": "prisma migrate dev --schema ../../prisma/schema.prisma --name tracking",
     "db:migrate:security": "prisma migrate dev --schema ../../prisma/schema.prisma --name security",
     "db:migrate:events": "prisma migrate dev --schema ../../prisma/schema.prisma --name free_event_storage",
-    "db:migrate:deploy": "prisma migrate deploy --schema ../../prisma/schema.prisma",
+    "db:migrate:deploy": "node scripts/migrate-deploy.mjs",
     "db:status": "prisma migrate status --schema ../../prisma/schema.prisma",
     "infra:check": "node ../../scripts/validate-production-env.mjs",
     "infra:check:services": "node ../../scripts/check-infrastructure.mjs",
