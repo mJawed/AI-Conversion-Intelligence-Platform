@@ -77,6 +77,17 @@ export function toLiveEvent(event: { event_id: string; event_type: string; occur
   return { eventId: event.event_id, eventType: event.event_type, occurredAt: iso(event.occurred_at), path: event.path || "/" };
 }
 
+function visitorSignals(userAgent: unknown, referrer: string | null, scrollDepth: number | null) {
+  const agent = typeof userAgent === "string" ? userAgent : "";
+  const device = /ipad|tablet|android(?!.*mobile)/i.test(agent) ? "Tablet" : /mobile|iphone|ipod|android/i.test(agent) ? "Mobile" : agent ? "Desktop" : "Not available";
+  const browser = /edg\//i.test(agent) ? "Edge" : /firefox\//i.test(agent) ? "Firefox" : /(?:chrome|crios)\//i.test(agent) ? "Chrome" : /safari\//i.test(agent) && !/(?:chrome|crios)\//i.test(agent) ? "Safari" : /opera|opr\//i.test(agent) ? "Opera" : agent ? "Other" : "Not available";
+  let source = "Direct";
+  if (referrer) {
+    try { source = new URL(referrer).hostname.replace(/^www\./i, ""); } catch { source = "Referral"; }
+  }
+  return { device, browser, source, scrollDepth: scrollDepth ?? 0 };
+}
+
 export async function getOverview(context: AnalyticsContext) {
   const where = eventWhere(context);
   const [metrics, topPages, traffic] = await Promise.all([
@@ -105,8 +116,8 @@ export async function getLiveTracking(context: AnalyticsContext, windowSeconds: 
 }
 
 export async function getVisitors(context: AnalyticsContext) {
-  const rows = await queryPostgres<{ visitor_id: string; last_seen: Date; sessions: number; events: number; conversions: number; current_page: string }>(Prisma.sql`WITH grouped AS (SELECT visitor_id, MAX(occurred_at) AS last_seen, COUNT(DISTINCT session_id)::int AS sessions, COUNT(*)::int AS events, COUNT(*) FILTER (WHERE event_type = 'conversion')::int AS conversions FROM tracking_events WHERE ${eventWhere(context)} GROUP BY visitor_id), latest AS (SELECT DISTINCT ON (visitor_id) visitor_id, url AS current_page FROM tracking_events WHERE ${eventWhere(context)} ORDER BY visitor_id, occurred_at DESC) SELECT grouped.visitor_id, grouped.last_seen, grouped.sessions, grouped.events, grouped.conversions, latest.current_page FROM grouped JOIN latest USING (visitor_id) ORDER BY grouped.last_seen DESC ${pagination(context)}`);
-  return { visitors: rows.map((row) => ({ ...row, last_seen: iso(row.last_seen) })), pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
+  const rows = await queryPostgres<{ visitor_id: string; last_seen: Date; sessions: number; events: number; conversions: number; current_page: string; user_agent: string | null; source_referrer: string | null; scroll_depth: number | null }>(Prisma.sql`WITH scoped AS (SELECT * FROM tracking_events WHERE ${eventWhere(context)}), grouped AS (SELECT visitor_id, MAX(occurred_at) AS last_seen, COUNT(DISTINCT session_id)::int AS sessions, COUNT(*)::int AS events, COUNT(*) FILTER (WHERE event_type = 'conversion')::int AS conversions FROM scoped GROUP BY visitor_id), latest AS (SELECT DISTINCT ON (visitor_id) visitor_id, url AS current_page, context->>'userAgent' AS user_agent FROM scoped ORDER BY visitor_id, occurred_at DESC), first_referrer AS (SELECT DISTINCT ON (visitor_id) visitor_id, referrer AS source_referrer FROM scoped WHERE referrer IS NOT NULL ORDER BY visitor_id, occurred_at ASC), scrolls AS (SELECT visitor_id, MAX(CASE WHEN properties->>'depth' ~ '^[0-9]+$' THEN (properties->>'depth')::int END)::int AS scroll_depth FROM scoped WHERE event_type = 'scroll' GROUP BY visitor_id) SELECT grouped.visitor_id, grouped.last_seen, grouped.sessions, grouped.events, grouped.conversions, latest.current_page, latest.user_agent, first_referrer.source_referrer, scrolls.scroll_depth FROM grouped JOIN latest USING (visitor_id) LEFT JOIN first_referrer USING (visitor_id) LEFT JOIN scrolls USING (visitor_id) ORDER BY grouped.last_seen DESC ${pagination(context)}`);
+  return { visitors: rows.map((row) => ({ ...row, last_seen: iso(row.last_seen), ...visitorSignals(row.user_agent, row.source_referrer, row.scroll_depth), user_agent: undefined, source_referrer: undefined, scroll_depth: undefined })), pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
 }
 
 export async function getSessions(context: AnalyticsContext) {
