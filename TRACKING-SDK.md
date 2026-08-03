@@ -42,6 +42,11 @@ window.aiGrowth.flush();
 `track("conversion", properties)` also creates a conversion event. Other
 event names are recorded as `custom` events.
 
+When tracking is allowed and the page remains visible, the SDK sends a
+privacy-safe `live_heartbeat` custom event every 60 seconds. This keeps active
+visitor counts useful for idle visitors. Heartbeats stop when the page is
+hidden or the visitor opts out.
+
 ## Consent and privacy
 
 Require consent before tracking by adding the script attribute:
@@ -106,8 +111,8 @@ API_BASE_URL=http://localhost:4000 npm run smoke:tracker --workspace @ai-growth/
   pipeline services are optional and disabled by default.
 - Coordinate heatmaps require click coordinates, which are not collected yet.
 - Full screen replay storage and playback are not enabled.
-- Realtime visitors, field-level form analysis, AI generation, billing, and
-  retention jobs remain separate platform work.
+- Field-level form analysis, AI generation, and billing remain separate
+  platform work.
 
 The SDK is complete for local installation and contract validation. Production
 deployment and external service provisioning are intentionally separate.

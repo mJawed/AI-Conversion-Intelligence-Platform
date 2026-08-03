@@ -111,6 +111,10 @@ The first API implementation is being added at `GET /api/v1/analytics/live`.
 
 ## Phase 6 — Optional later upgrade
 
+Before a streaming upgrade, the SDK now provides a lightweight visible-page
+heartbeat every 60 seconds so idle visitors remain visible within the current
+five-minute activity window.
+
 Only if polling becomes insufficient at higher traffic:
 
 - Consider Server-Sent Events or WebSockets.

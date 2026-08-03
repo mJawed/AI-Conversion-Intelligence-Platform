@@ -1550,3 +1550,10 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added a privacy contract test confirming live activity objects exclude visitor identifiers.
 - Verified the full API/dashboard build, lint, typecheck, and API test suite.
 - Real-site event comparison remains a beta operation using `PRIVATE-BETA.md` and the deployed beta check command.
+## Live Tracking Heartbeat — Idle visitor presence
+
+**Status:** Complete as a lightweight presence enhancement
+
+- Added a visible-page `live_heartbeat` event every 60 seconds to the tracking SDK.
+- Heartbeats respect consent, Do Not Track, opt-out, and tab visibility.
+- Added tracker contract coverage and SDK documentation.
