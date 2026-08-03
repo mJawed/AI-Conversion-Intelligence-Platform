@@ -69,6 +69,8 @@ test("tracker script includes Phase 2 event delivery hooks", () => {
   assert.match(trackerScript, /scroll/);
   assert.match(trackerScript, /window\.aiGrowth/);
   assert.match(trackerScript, /keepalive/);
+  assert.match(trackerScript, /live_heartbeat/);
+  assert.match(trackerScript, /setInterval/);
 });
 
 test("tracker script includes consent and privacy controls", () => {

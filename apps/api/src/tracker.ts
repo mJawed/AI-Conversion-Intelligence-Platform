@@ -15,6 +15,7 @@ const trackerSource = String.raw`(function () {
   var optOutKey = "ai-growth:opt-out";
   var queue = [];
   var flushTimer = null;
+  var heartbeatTimer = null;
   var lastPage = "";
   var scrollMilestones = {};
   var formStarts = typeof WeakSet === "function" ? new WeakSet() : null;
@@ -154,6 +155,18 @@ const trackerSource = String.raw`(function () {
     if (flushTimer) { window.clearTimeout(flushTimer); flushTimer = null; }
   }
 
+  function startHeartbeat() {
+    if (heartbeatTimer || !trackingAllowed() || typeof window.setInterval !== "function") return;
+    heartbeatTimer = window.setInterval(function () {
+      if (document.visibilityState === "visible") enqueue("custom", { eventName: "live_heartbeat" });
+    }, 60000);
+  }
+
+  function stopHeartbeat() {
+    if (heartbeatTimer && typeof window.clearInterval === "function") window.clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+
   function startTracking() {
     if (!trackingAllowed()) return;
     if (!readStorage(window.sessionStorage, sessionStartedKey)) {
@@ -161,6 +174,7 @@ const trackerSource = String.raw`(function () {
       enqueue("session_start", {});
     }
     pageView();
+    startHeartbeat();
   }
 
   function installHistoryTracking() {
@@ -213,7 +227,7 @@ const trackerSource = String.raw`(function () {
   window.aiGrowth.hasConsent = function () { return !requireConsent || readStorage(window.localStorage, consentKey) === "granted"; };
   window.aiGrowth.grantConsent = function () { writeStorage(window.localStorage, consentKey, "granted"); removeStorage(window.localStorage, optOutKey); startTracking(); enqueue("custom", { eventName: "consent_granted" }); };
   window.aiGrowth.denyConsent = function () { writeStorage(window.localStorage, consentKey, "denied"); window.aiGrowth.optOut(); };
-  window.aiGrowth.optOut = function () { writeStorage(window.localStorage, optOutKey, "1"); clearQueuedEvents(); };
+  window.aiGrowth.optOut = function () { writeStorage(window.localStorage, optOutKey, "1"); stopHeartbeat(); clearQueuedEvents(); };
   window.aiGrowth.optIn = function () { removeStorage(window.localStorage, optOutKey); if (!requireConsent) startTracking(); };
 
   document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") flush(); });
