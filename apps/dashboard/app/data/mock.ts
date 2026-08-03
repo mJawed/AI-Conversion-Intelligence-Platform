@@ -16,7 +16,7 @@ export type Visitor = {
   name: string;
   status: "Active" | "Converted" | "Returned" | "Bounced";
   currentPage: string;
-  device: "Desktop" | "Mobile" | "Tablet";
+  device: "Desktop" | "Mobile" | "Tablet" | "Not available";
   country: string;
   browser: string;
   source: string;

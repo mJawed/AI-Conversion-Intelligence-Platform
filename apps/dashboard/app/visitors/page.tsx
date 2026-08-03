@@ -8,12 +8,12 @@ import { getAuthenticatedAnalytics } from "../lib/api-client";
 import { useAccount, useMockData } from "../lib/account-context";
 import { VisitorsView } from "./visitors-view";
 
-type LiveVisitor = { visitor_id: string; last_seen: string; sessions: number; events: number; conversions: number; current_page: string };
+type LiveVisitor = { visitor_id: string; last_seen: string; sessions: number; events: number; conversions: number; current_page: string; device?: Visitor["device"]; browser?: string; source?: string; scrollDepth?: number };
 type VisitorsResponse = { visitors: LiveVisitor[]; pagination: { hasMore: boolean } };
 
 const ranges = [{ label: "Last 7 days", days: 7 }, { label: "Last 30 days", days: 30 }, { label: "Last 90 days", days: 90 }] as const;
 function queryFor(days: number, organizationId: string, websiteId: string) { const to = new Date(); const from = new Date(to.getTime() - days * 86400000); return { organizationId, websiteId, from: from.toISOString(), to: to.toISOString(), limit: "50", offset: "0", sort: "recent" }; }
-function mapVisitor(visitor: LiveVisitor): Visitor { const converted = Number(visitor.conversions) > 0; return { id: visitor.visitor_id, initials: "AN", name: "Anonymous visitor", status: converted ? "Converted" : "Active", currentPage: visitor.current_page || "Not available", device: "Desktop", country: "Not available", browser: "Not available", source: "Not available", lastSeen: new Date(visitor.last_seen).toLocaleString(), duration: "Not available", scrollDepth: 0, sessions: Number(visitor.sessions), events: Number(visitor.events), timeline: [] }; }
+function mapVisitor(visitor: LiveVisitor): Visitor { const converted = Number(visitor.conversions) > 0; return { id: visitor.visitor_id, initials: "AN", name: "Anonymous visitor", status: converted ? "Converted" : "Active", currentPage: visitor.current_page || "Not available", device: visitor.device || "Not available", country: "Not available", browser: visitor.browser || "Not available", source: visitor.source || "Not available", lastSeen: new Date(visitor.last_seen).toLocaleString(), duration: "Not available", scrollDepth: Number(visitor.scrollDepth || 0), sessions: Number(visitor.sessions), events: Number(visitor.events), timeline: [] }; }
 
 export default function VisitorsPage() {
   const account = useAccount();
