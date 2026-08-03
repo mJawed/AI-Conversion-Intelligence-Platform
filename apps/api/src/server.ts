@@ -27,7 +27,12 @@ const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
 const allowedOrigins = new Set((process.env.CORS_ORIGINS ?? "http://localhost:3000").split(",").map((origin) => origin.trim()).filter(Boolean));
 
 app.use(helmet());
-app.use("/api/v1/collect", cors());
+// The tracking SDK uses cross-origin Beacon requests. Beacon requests can be
+// treated as credentialed by browsers, so `Access-Control-Allow-Origin: *`
+// causes them to fail even though the collector itself accepts the payload.
+// The collector performs its own tracking-domain authorization; this middleware
+// only makes the browser response readable by echoing the request origin.
+app.use("/api/v1/collect", cors({ origin: true, credentials: true }));
 app.use(cors({ origin: (origin, callback) => callback(null, !origin || allowedOrigins.has(origin) ? origin : false), credentials: true }));
 app.use((request, response, next) => { const startedAt = Date.now(); response.once("finish", () => writeSafeRequestLog(request, response, startedAt)); next(); });
 app.use(express.json({ limit: "32kb" }));
