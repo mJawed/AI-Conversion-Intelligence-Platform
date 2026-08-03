@@ -157,9 +157,10 @@ const trackerSource = String.raw`(function () {
 
   function startHeartbeat() {
     if (heartbeatTimer || !trackingAllowed() || typeof window.setInterval !== "function") return;
+    if (document.visibilityState === "visible") enqueue("custom", { eventName: "live_heartbeat" });
     heartbeatTimer = window.setInterval(function () {
       if (document.visibilityState === "visible") enqueue("custom", { eventName: "live_heartbeat" });
-    }, 60000);
+    }, 30000);
   }
 
   function stopHeartbeat() {
@@ -230,7 +231,10 @@ const trackerSource = String.raw`(function () {
   window.aiGrowth.optOut = function () { writeStorage(window.localStorage, optOutKey, "1"); stopHeartbeat(); clearQueuedEvents(); };
   window.aiGrowth.optIn = function () { removeStorage(window.localStorage, optOutKey); if (!requireConsent) startTracking(); };
 
-  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") flush(); });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") flush();
+    if (document.visibilityState === "visible" && trackingAllowed()) enqueue("custom", { eventName: "live_heartbeat" });
+  });
   window.addEventListener("pagehide", flush);
   installHistoryTracking();
   startTracking();
