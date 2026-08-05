@@ -35,7 +35,7 @@ export type BehaviourIssue = { type: "Rage click" | "Dead click" | "Scroll drop-
 export type ClickTarget = { selector: string; label: string; clicks: string; rate: string; issue?: string };
 export type HeatmapPoint = { x: number; y: number; intensity: number; type: "click" | "dead" };
 export type ReplaySession = { id: string; initials: string; page: string; device: string; country: string; duration: string; time: string; events: number; status: "Converted" | "Frustrated" | "Exploring"; summary: string; timeline: SessionEvent[] };
-export type AIInsight = { id: string; category: "Forms" | "UX" | "CTA" | "Content" | "Funnels"; severity: "High" | "Medium" | "Low"; status: "Open" | "Dismissed" | "Resolved"; title: string; page: string; problem: string; reason: string; evidence: string[]; confidence: string; businessImpact: string; recommendation: string; expectedImprovement: string; created: string };
+export type AIInsight = { id: string; source?: string; category: "Forms" | "UX" | "CTA" | "Content" | "Funnels"; severity: "High" | "Medium" | "Low"; status: "Open" | "Dismissed" | "Resolved"; title: string; page: string; problem: string; reason: string; evidence: string[]; confidence: string; businessImpact: string; recommendation: string; expectedImprovement: string; created: string };
 export type WebsiteSettings = { name: string; domain: string; trackingId: string; timezone: string; currency: string; industry: string; status: "Connected" | "Needs setup"; eventsThisMonth: string; plan: string };
 
 export type NavigationItem = {
