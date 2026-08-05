@@ -175,6 +175,10 @@ export async function getBehaviour(context: AnalyticsContext) {
   return { behaviour: rows, range: { from: context.from, to: context.to } };
 }
 
+async function getPageConversionSignals(context: AnalyticsContext) {
+  return queryPostgres<{ path: string; visitors: number; page_views: number; conversions: number }>(Prisma.sql`SELECT split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) AS path, COUNT(DISTINCT visitor_id)::int AS visitors, COUNT(*) FILTER (WHERE event_type = 'page_view')::int AS page_views, COUNT(*) FILTER (WHERE event_type = 'conversion')::int AS conversions FROM tracking_events WHERE ${eventWhere(context)} GROUP BY path ORDER BY visitors DESC LIMIT 20`);
+}
+
 export async function getHeatmaps(context: AnalyticsContext) {
   const rows = await queryPostgres<{ url: string; clicks: number; visitors: number }>(Prisma.sql`SELECT url, COUNT(*)::int AS clicks, COUNT(DISTINCT visitor_id)::int AS visitors FROM tracking_events WHERE ${eventWhere(context)} AND event_type = 'click' GROUP BY url ORDER BY clicks DESC ${pagination(context)}`);
   return { heatmaps: rows, pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit }, message: "Coordinate-level heatmaps require click coordinates in the tracking payload." };
@@ -186,7 +190,7 @@ export async function getReplays(context: AnalyticsContext) {
 }
 
 export async function getInsights(context: AnalyticsContext) {
-  const [overview, forms, behaviour] = await Promise.all([getOverview(context), getForms(context), getBehaviour(context)]);
+  const [overview, forms, behaviour, pageSignals] = await Promise.all([getOverview(context), getForms(context), getBehaviour(context), getPageConversionSignals(context)]);
   const candidates: Array<{ fingerprint: string; category: string; severity: string; title: string; page: string; problem: string; reason: string; evidence: string[]; confidence: string; businessImpact: string; recommendation: string; expectedImprovement: string }> = [];
   const visitors = Number(overview.metrics.visitors);
   const conversionRate = Number(overview.metrics.conversionRate);
@@ -197,6 +201,9 @@ export async function getInsights(context: AnalyticsContext) {
   }
   const clickRow = behaviour.behaviour.find((row) => row.event_type === "click");
   if (clickRow && Number(clickRow.visitors) >= 20 && Number(clickRow.events) / Number(clickRow.visitors) > 8) candidates.push({ fingerprint: "high-click-density", category: "UX", severity: "Medium", title: "Visitors generate unusually dense click activity", page: "Site-wide", problem: `${clickRow.events} clicks were recorded across ${clickRow.visitors} visitors.`, reason: "Repeated interaction can indicate unclear affordances, dead clicks, or visitors searching for the next step.", evidence: [`${clickRow.events} click events`, `${clickRow.visitors} visitors`, `${(Number(clickRow.events) / Number(clickRow.visitors)).toFixed(1)} clicks per visitor`], confidence: "Medium", businessImpact: "Reducing interaction confusion can improve journey progression and reduce wasted sessions.", recommendation: "Inspect high-click pages for unclear controls, dead zones, and competing calls to action.", expectedImprovement: "+3–7% relative" });
+  for (const page of pageSignals.filter((signal) => Number(signal.visitors) >= 10 && Number(signal.page_views) >= 20 && Number(signal.conversions) === 0).slice(0, 3)) {
+    candidates.push({ fingerprint: `content-no-conversion-${page.path}`, category: "Content", severity: "Medium", title: "A high-traffic page has no recorded conversion signal", page: page.path || "/", problem: `${page.visitors} visitors viewed ${page.path || "/"}, but no conversion event was recorded there.`, reason: "The page attracts attention but is not currently connected to a measurable conversion outcome.", evidence: [`${page.visitors} unique visitors`, `${page.page_views} page views`, "0 conversions recorded"], confidence: "Medium", businessImpact: "Improving the next step on a high-traffic page can unlock conversions from existing demand.", recommendation: "Clarify the page goal, strengthen the primary CTA, and verify that the intended conversion event fires after completion.", expectedImprovement: "+3–8% relative" });
+  }
   for (const candidate of candidates) await prisma.insight.upsert({ where: { websiteId_fingerprint: { websiteId: context.websiteId, fingerprint: candidate.fingerprint } }, create: { ...candidate, organizationId: context.organizationId, websiteId: context.websiteId, evidence: candidate.evidence }, update: { ...candidate, evidence: candidate.evidence } });
   const insights = await prisma.insight.findMany({ where: { organizationId: context.organizationId, websiteId: context.websiteId }, orderBy: [{ status: "asc" }, { severity: "asc" }, { updatedAt: "desc" }] });
   return { insights: insights.map((insight) => ({ id: insight.id, category: insight.category, severity: insight.severity, status: insight.status === "OPEN" ? "Open" : insight.status === "RESOLVED" ? "Resolved" : "Dismissed", title: insight.title, page: insight.page, problem: insight.problem, reason: insight.reason, evidence: Array.isArray(insight.evidence) ? insight.evidence.map(String) : [], confidence: insight.confidence, businessImpact: insight.businessImpact, recommendation: insight.recommendation, expectedImprovement: insight.expectedImprovement, created: insight.createdAt.toISOString() })), evidence: behaviour.behaviour, message: candidates.length ? undefined : "More traffic is needed before reliable CRO insights can be generated." };
