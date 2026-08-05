@@ -1577,3 +1577,13 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Includes evidence, confidence, business impact, recommendation, priority, and expected improvement for each finding.
 - Limits page analysis to the top 20 pages and creates no paid AI-service dependency.
 - API tests and API/dashboard production builds passed.
+
+## Phase 23 — Funnel Intelligence
+
+**Status:** Complete as an ordered, evidence-backed funnel foundation
+
+- Funnel steps now require ordered visitor progression instead of independent page counts.
+- Conversion goals are scoped to visitors who entered the funnel.
+- Added largest drop-off detection with step-level bottleneck markers.
+- Added confidence, reason, recommendation, and expected-improvement guidance.
+- API tests and API/dashboard production builds passed.
