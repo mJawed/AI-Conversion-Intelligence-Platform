@@ -8,6 +8,8 @@ import { WebsiteStatus } from "@prisma/client";
 import { trackerScript } from "../../src/tracker";
 import { getPipelineMetrics, publishEvent, toClickHouseRow } from "../../src/event-pipeline";
 import { getInfrastructureConfig, getMaxTrackingEventsPerDay, getEventRetentionDays, getAnalyticsStorage, isFreeMvpMode } from "../../src/config";
+import { createCROFingerprint, hasCROSample, normalizeCROEvidence, normalizeCROPath, normalizeCRORecommendation } from "../../src/cro-recommendations";
+import { buildCRORecommendations } from "../../src/cro-recommendation-rules";
 
 test("normalizes website domains and rejects paths", () => {
   assert.equal(normalizeDomain("https://WWW.Example.com/"), "www.example.com");
@@ -30,6 +32,91 @@ test("normalizes analytics ranges and pagination", () => {
   assert.equal(context.limit, 10);
   assert.equal(context.offset, 5);
   assert.ok(new Date(context.from) < new Date(context.to));
+});
+
+test("normalizes unified CRO recommendation contracts", () => {
+  assert.equal(normalizeCROPath("https://example.com/pricing/?utm_source=test#plans"), "/pricing/");
+  assert.equal(normalizeCROPath("pricing?variant=b"), "/pricing");
+  assert.equal(createCROFingerprint("form", "abandonment", "signup"), "cro:form:abandonment:signup");
+  assert.equal(hasCROSample("formStarts", 9), false);
+  assert.equal(hasCROSample("formStarts", 10), true);
+
+  const evidence = normalizeCROEvidence([
+    { source: "form", metric: "  Starts ", value: "10 starts" },
+    { source: "form", metric: "Starts", value: "10 starts" },
+  ]);
+  assert.equal(evidence.length, 1);
+  assert.equal(evidence[0]?.metric, "Starts");
+
+  const recommendation = normalizeCRORecommendation({
+    source: "page",
+    rule: "no-conversion",
+    entity: "/pricing",
+    category: "Content",
+    priority: "Medium",
+    title: "  Pricing page needs a clearer next step  ",
+    page: "https://example.com/pricing?utm=campaign",
+    problem: "  Visitors do not reach a measurable conversion. ",
+    reason: "The page receives meaningful traffic without a conversion signal.",
+    evidence,
+    confidence: "Medium",
+    businessImpact: "Existing demand may be under-converting.",
+    recommendation: "Clarify the primary CTA.",
+    expectedImprovement: "+3–8% relative",
+  });
+  assert.equal(recommendation.fingerprint, "cro:page:no-conversion:pricing");
+  assert.equal(recommendation.page, "/pricing");
+  assert.equal(recommendation.title, "Pricing page needs a clearer next step");
+});
+
+test("generates unified CRO recommendations only when samples are sufficient", () => {
+  const recommendations = buildCRORecommendations({
+    overview: { visitors: 30, conversions: 2, conversionRate: 6.67 },
+    forms: [{ form_id: "signup", path: "/signup", started: 20, completed: 8, errors: 6, completionRate: 40 }],
+    funnels: [{ id: "funnel-1", name: "Signup", totalVisitors: "20", conversions: "3", steps: [{ name: "Landing", path: "/", visitors: "20", dropOff: "0%" }, { name: "Signup", path: "/signup", visitors: "8", dropOff: "60%" }] }],
+    behaviour: { issues: [{ type: "Rage click", title: "Repeated clicks", page: "/pricing", detail: "12 clicks across 10 visitors were clustered within short intervals.", impact: "+3–7%", priority: "High" }], scrollPages: [] },
+    pages: [{ path: "/pricing", visitors: 12, page_views: 24, conversions: 0 }],
+  });
+  assert.equal(recommendations.length, 4);
+  assert.ok(recommendations.some((item) => item.source === "funnel" && item.priority === "High"));
+  assert.ok(recommendations.some((item) => item.source === "form"));
+  assert.ok(recommendations.some((item) => item.source === "behaviour"));
+  assert.ok(recommendations.some((item) => item.source === "page"));
+  assert.equal(buildCRORecommendations({ overview: { visitors: 1, conversions: 0, conversionRate: 0 }, forms: [{ form_id: "signup", started: 9, completed: 0, errors: 9, completionRate: 0 }], funnels: [{ id: "funnel-1", name: "Signup", totalVisitors: "9", conversions: "0", steps: [{ name: "Landing", path: "/", visitors: "9", dropOff: "0%" }, { name: "Signup", path: "/signup", visitors: "1", dropOff: "88%" }] }], behaviour: { issues: [{ type: "Rage click", title: "Repeated clicks", page: "/", detail: "3 clicks across 2 visitors were clustered within short intervals.", impact: "+3–7%", priority: "High" }], scrollPages: [] }, pages: [{ path: "/", visitors: 9, page_views: 19, conversions: 0 }] }).length, 0);
+});
+
+test("deduplicates unified CRO recommendation fingerprints", () => {
+  const input = {
+    overview: { visitors: 30, conversions: 0, conversionRate: 0 },
+    forms: [],
+    funnels: [],
+    behaviour: { issues: [], scrollPages: [] },
+    pages: [
+      { path: "/pricing", visitors: 12, page_views: 24, conversions: 0 },
+      { path: "/pricing?utm_source=test", visitors: 12, page_views: 24, conversions: 0 },
+    ],
+  };
+  const recommendations = buildCRORecommendations(input);
+  assert.equal(recommendations.length, 1);
+  assert.equal(new Set(recommendations.map((item) => item.fingerprint)).size, recommendations.length);
+});
+
+test("keeps unified CRO recommendations bounded and privacy-safe", () => {
+  const recommendations = buildCRORecommendations({
+    overview: { visitors: 40, conversions: 0, conversionRate: 0 },
+    forms: [{ form_id: "contact", path: "/contact", started: 20, completed: 5, errors: 12, completionRate: 25 }],
+    funnels: [],
+    behaviour: { issues: [{ type: "Dead click", title: "Unlinked click targets need review", page: "/pricing", detail: "12 clicks had no link or explicit role metadata.", impact: "+2–5%", priority: "Medium" }], scrollPages: [] },
+    pages: [{ path: "/pricing", visitors: 20, page_views: 40, conversions: 0 }],
+  });
+  const serialized = JSON.stringify(recommendations);
+  assert.doesNotMatch(serialized, /visitorId|sessionId|password|email/i);
+  for (const recommendation of recommendations) {
+    assert.ok(recommendation.fingerprint.startsWith("cro:"));
+    assert.ok(recommendation.evidence.length <= 8);
+    assert.ok(recommendation.title && recommendation.problem && recommendation.reason && recommendation.recommendation);
+    assert.ok(["High", "Medium", "Low"].includes(recommendation.priority));
+  }
 });
 
 test("keeps live tracking queries bounded and privacy-safe", () => {
