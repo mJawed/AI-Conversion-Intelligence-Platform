@@ -65,6 +65,7 @@ test("tracker script includes Phase 2 event delivery hooks", () => {
   assert.match(trackerScript, /pushState/);
   assert.match(trackerScript, /form_start/);
   assert.match(trackerScript, /form_submit/);
+  assert.match(trackerScript, /form_error/);
   assert.match(trackerScript, /formId/);
   assert.match(trackerScript, /scroll/);
   assert.match(trackerScript, /window\.aiGrowth/);

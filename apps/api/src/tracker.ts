@@ -207,6 +207,12 @@ const trackerSource = String.raw`(function () {
     if (event.target && event.target.tagName === "FORM") enqueue("form_submit", formProperties(event.target));
   }, true);
 
+  document.addEventListener("invalid", function (event) {
+    var field = event.target;
+    var form = field && field.form;
+    if (form) enqueue("custom", { eventName: "form_error", formId: form.id ? form.id.slice(0, 80) : "anonymous", fieldType: field.type ? field.type.slice(0, 40) : "unknown" });
+  }, true);
+
   window.addEventListener("scroll", function () {
     var documentHeight = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0) - window.innerHeight;
     if (documentHeight <= 0) return;
