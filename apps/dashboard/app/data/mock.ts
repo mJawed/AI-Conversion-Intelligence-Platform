@@ -28,7 +28,7 @@ export type Visitor = {
   timeline: SessionEvent[];
 };
 export type FormField = { name: string; completion: number; dropOff: number; errors: number; issue: string };
-export type FormAnalytics = { id: string; name: string; path: string; started: string; completed: string; completionRate: string; abandonmentRate: string; avgTime: string; submissions: string; fields: FormField[]; recommendation: { title: string; reason: string; impact: string; priority: "High" | "Medium" | "Low" } };
+export type FormAnalytics = { id: string; name: string; path: string; started: string; completed: string; completionRate: string; abandonmentRate: string; avgTime: string; submissions: string; validationErrors?: number; fields: FormField[]; recommendation: { title: string; reason: string; impact: string; priority: "High" | "Medium" | "Low" } };
 export type FunnelStep = { name: string; path: string; visitors: string; count: number; conversion: string; dropOff: string; issue?: string };
 export type FunnelAnalytics = { id: string; name: string; description: string; totalVisitors: string; conversions: string; conversionRate: string; change: string; steps: FunnelStep[]; explanation: { title: string; reason: string; confidence: string; recommendation: string; impact: string } };
 export type BehaviourIssue = { type: "Rage click" | "Dead click" | "Scroll drop-off" | "Exit pattern"; title: string; page: string; detail: string; impact: string; priority: "High" | "Medium" | "Low" };

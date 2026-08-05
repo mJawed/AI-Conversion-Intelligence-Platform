@@ -12,7 +12,7 @@ export function FormsView({ forms, live = false }: Readonly<{ forms: FormAnalyti
     <div className="forms-explorer">
       <div className="form-tabs" role="tablist" aria-label="Forms"><span className="tab-label">Tracked forms</span>{forms.map((form) => <button className={form.id === selected.id ? "form-tab active" : "form-tab"} key={form.id} onClick={() => setSelectedId(form.id)} type="button" role="tab" aria-selected={form.id === selected.id}>{form.name}</button>)}</div>
       <section className="form-summary-grid"><SummaryMetric label="Started" value={selected.started} detail="Visitors began this form" /><SummaryMetric label="Completed" value={selected.completed} detail={`${selected.submissions} submissions`} /><SummaryMetric label="Completion rate" value={selected.completionRate} detail="From start to submit" tone="positive" /><SummaryMetric label="Abandonment" value={selected.abandonmentRate} detail="Visitors who left before submit" tone="negative" /><SummaryMetric label="Avg. completion time" value={selected.avgTime} detail="From first focus to submit" /></section>
-      <div className="forms-content-grid"><FieldDropoff form={selected} /><FormRecommendation recommendation={live ? null : selected.recommendation} /></div>
+      <div className="forms-content-grid"><FieldDropoff form={selected} /><FormRecommendation recommendation={selected.recommendation} /></div>
       <div className="forms-content-grid forms-bottom-grid"><ValidationErrors form={selected} /><CompletionChart available={!live} /></div>
     </div>
   );
@@ -32,7 +32,8 @@ function FormRecommendation({ recommendation }: Readonly<{ recommendation: FormA
 }
 
 function ValidationErrors({ form }: Readonly<{ form: FormAnalytics }>) {
-  return <section className="widget" aria-labelledby="validation-heading"><div className="widget-heading"><div><p className="eyebrow">Friction signals</p><h2 id="validation-heading">Validation errors</h2></div><span className="list-meta">Form events</span></div>{form.fields.filter((field) => field.errors > 0).length ? <div className="error-list">{form.fields.filter((field) => field.errors > 0).map((field) => <div className="error-row" key={field.name}><span className="error-icon">!</span><div><strong>{field.name}</strong><p>{field.issue}</p></div><b>{field.errors}</b></div>)}</div> : <p className="widget-empty">Validation errors are not included in the current live form event data.</p>}</section>;
+  const fields = form.fields.filter((field) => field.errors > 0);
+  return <section className="widget" aria-labelledby="validation-heading"><div className="widget-heading"><div><p className="eyebrow">Friction signals</p><h2 id="validation-heading">Validation errors</h2></div><span className="list-meta">Form events</span></div>{fields.length ? <div className="error-list">{fields.map((field) => <div className="error-row" key={field.name}><span className="error-icon">!</span><div><strong>{field.name}</strong><p>{field.issue}</p></div><b>{field.errors}</b></div>)}</div> : form.validationErrors ? <div className="error-list"><div className="error-row"><span className="error-icon">!</span><div><strong>Form validation</strong><p>Errors were detected without storing field names or values.</p></div><b>{form.validationErrors}</b></div></div> : <p className="widget-empty">No validation errors have been recorded for this form.</p>}</section>;
 }
 
 function CompletionChart({ available }: Readonly<{ available: boolean }>) {
