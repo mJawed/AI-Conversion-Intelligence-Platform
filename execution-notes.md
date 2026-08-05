@@ -1557,3 +1557,13 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added a visible-page `live_heartbeat` event every 60 seconds to the tracking SDK.
 - Heartbeats respect consent, Do Not Track, opt-out, and tab visibility.
 - Added tracker contract coverage and SDK documentation.
+
+## Phase 21 — Visitor session timeline
+
+**Status:** Complete as a privacy-safe visitor journey foundation
+
+- Added a bounded timeline of the latest 20 visitor events.
+- Added readable entries for page views, clicks, forms, scrolls, sessions, custom events, and conversions.
+- Connected the Visitors detail panel to live timeline data.
+- Preserved privacy by returning event type, safe path, timestamp, and scroll depth only.
+- API tests and API/dashboard production builds passed.
