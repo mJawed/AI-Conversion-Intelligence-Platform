@@ -180,8 +180,24 @@ export async function getFunnels(context: AnalyticsContext) {
 }
 
 export async function getBehaviour(context: AnalyticsContext) {
-  const rows = await queryPostgres<{ event_type: string; events: number; visitors: number }>(Prisma.sql`SELECT event_type, COUNT(*)::int AS events, COUNT(DISTINCT visitor_id)::int AS visitors FROM tracking_events WHERE ${eventWhere(context)} AND event_type IN ('click', 'scroll', 'page_view') GROUP BY event_type ORDER BY events DESC`);
-  return { behaviour: rows, range: { from: context.from, to: context.to } };
+  const where = eventWhere(context);
+  const [rows, clickTargets, scrollPages, rageClicks, deadClicks, journey] = await Promise.all([
+    queryPostgres<{ event_type: string; events: number; visitors: number }>(Prisma.sql`SELECT event_type, COUNT(*)::int AS events, COUNT(DISTINCT visitor_id)::int AS visitors FROM tracking_events WHERE ${where} AND event_type IN ('click', 'scroll', 'page_view') GROUP BY event_type ORDER BY events DESC`),
+    queryPostgres<{ page: string; selector: string; clicks: number; visitors: number }>(Prisma.sql`SELECT split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) AS page, COALESCE(NULLIF(properties->>'id', ''), NULLIF(properties->>'href', ''), NULLIF(properties->>'role', ''), properties->>'tag', 'unknown') AS selector, COUNT(*)::int AS clicks, COUNT(DISTINCT visitor_id)::int AS visitors FROM tracking_events WHERE ${where} AND event_type = 'click' GROUP BY page, selector ORDER BY clicks DESC LIMIT 50`),
+    queryPostgres<{ page: string; visitors: number; depth: number }>(Prisma.sql`SELECT split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) AS page, COUNT(DISTINCT visitor_id)::int AS visitors, ROUND(AVG(CASE WHEN properties->>'depth' ~ '^[0-9]+$' THEN (properties->>'depth')::numeric END), 1)::float AS depth FROM tracking_events WHERE ${where} AND event_type = 'scroll' GROUP BY page ORDER BY visitors DESC LIMIT 50`),
+    queryPostgres<{ page: string; events: number; visitors: number }>(Prisma.sql`WITH clicks AS (SELECT visitor_id, session_id, split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) AS page, FLOOR(EXTRACT(EPOCH FROM occurred_at) / 10) AS bucket FROM tracking_events WHERE ${where} AND event_type = 'click') SELECT page, COUNT(*)::int AS events, COUNT(DISTINCT visitor_id)::int AS visitors FROM clicks GROUP BY page, bucket HAVING COUNT(*) >= 3 ORDER BY events DESC LIMIT 20`),
+    queryPostgres<{ page: string; events: number; visitors: number }>(Prisma.sql`SELECT split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) AS page, COUNT(*)::int AS events, COUNT(DISTINCT visitor_id)::int AS visitors FROM tracking_events WHERE ${where} AND event_type = 'click' AND COALESCE(properties->>'href', '') = '' AND COALESCE(properties->>'role', '') = '' GROUP BY page ORDER BY events DESC LIMIT 20`),
+    queryPostgres<{ landing: string; exit: string; sessions: number }>(Prisma.sql`WITH session_pages AS (SELECT session_id, ARRAY_AGG(split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) ORDER BY occurred_at ASC) AS pages FROM tracking_events WHERE ${where} GROUP BY session_id) SELECT pages[1] AS landing, pages[array_length(pages, 1)] AS exit, COUNT(*)::int AS sessions FROM session_pages GROUP BY landing, exit ORDER BY sessions DESC LIMIT 20`),
+  ]);
+  const mappedScrollPages = scrollPages.map((page) => ({ page: page.page || "/", visitors: String(page.visitors), depth: Number(page.depth ?? 0), fold: Math.min(100, Math.round(Number(page.depth ?? 0) + 20)) }));
+  const issues = [
+    ...rageClicks.map((row) => ({ type: "Rage click", title: "Visitors repeatedly click on the same page", page: row.page || "/", detail: `${row.events} clicks across ${row.visitors} visitors were clustered within short intervals.`, impact: "+3–7%", priority: "High" })),
+    ...deadClicks.map((row) => ({ type: "Dead click", title: "Unlinked click targets need review", page: row.page || "/", detail: `${row.events} clicks had no link or explicit role metadata.`, impact: "+2–5%", priority: "Medium" })),
+    ...mappedScrollPages.filter((row) => row.depth > 0 && row.depth < 50).slice(0, 5).map((row) => ({ type: "Scroll drop-off", title: "Visitors stop before reaching deeper content", page: row.page, detail: `Average tracked scroll depth is ${row.depth}% across ${row.visitors} visitors.`, impact: "+3–6%", priority: "Medium" })),
+  ];
+  const clickSummary = rows.find((row) => row.event_type === "click");
+  const scrollSummary = rows.find((row) => row.event_type === "scroll");
+  return { behaviour: rows, clickTargets, scrollPages: mappedScrollPages, issues, journey, summary: { totalClicks: Number(clickSummary?.events ?? 0), avgScrollDepth: mappedScrollPages.length ? Number((mappedScrollPages.reduce((sum, page) => sum + page.depth, 0) / mappedScrollPages.length).toFixed(1)) : null, rageClicks: rageClicks.reduce((sum, row) => sum + Number(row.events), 0), deadClicks: deadClicks.reduce((sum, row) => sum + Number(row.events), 0), scrollEvents: Number(scrollSummary?.events ?? 0) }, range: { from: context.from, to: context.to } };
 }
 
 async function getPageConversionSignals(context: AnalyticsContext) {
