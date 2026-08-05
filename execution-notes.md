@@ -1587,3 +1587,13 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added largest drop-off detection with step-level bottleneck markers.
 - Added confidence, reason, recommendation, and expected-improvement guidance.
 - API tests and API/dashboard production builds passed.
+
+## Phase 24 — Form Intelligence
+
+**Status:** Complete as a privacy-safe form performance foundation
+
+- Added validation-error tracking without collecting field names, labels, or values.
+- Added form page, starts, submissions, validation errors, visitors, completion, and abandonment metrics.
+- Added live form recommendations based on abandonment and validation friction.
+- Connected validation-error summaries and recommendations to the Forms dashboard.
+- API tests and API/dashboard production builds passed.
