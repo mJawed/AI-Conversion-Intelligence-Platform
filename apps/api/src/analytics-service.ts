@@ -88,6 +88,29 @@ function visitorSignals(userAgent: unknown, referrer: string | null, scrollDepth
   return { device, browser, source, scrollDepth: scrollDepth ?? 0 };
 }
 
+function visitorTimeline(events: unknown) {
+  if (!Array.isArray(events)) return [];
+  return events.map((event) => {
+    const row = event as { eventType?: unknown; occurredAt?: unknown; path?: unknown; properties?: unknown };
+    const eventType = typeof row.eventType === "string" ? row.eventType : "custom";
+    const path = typeof row.path === "string" && row.path ? row.path : "/";
+    const properties = row.properties && typeof row.properties === "object" ? row.properties as Record<string, unknown> : {};
+    const depth = typeof properties.depth === "number" || typeof properties.depth === "string" ? `${properties.depth}%` : "";
+    const labels: Record<string, { title: string; icon: string }> = {
+      session_start: { title: "Started session", icon: "⌂" },
+      page_view: { title: "Viewed page", icon: "⌂" },
+      click: { title: "Clicked an element", icon: "↗" },
+      form_start: { title: "Started a form", icon: "▤" },
+      form_submit: { title: "Submitted a form", icon: "✓" },
+      conversion: { title: "Recorded conversion", icon: "✓" },
+      scroll: { title: "Scrolled page", icon: "↕" },
+      custom: { title: "Recorded activity", icon: "•" },
+    };
+    const label = labels[eventType] ?? labels.custom;
+    return { time: iso(typeof row.occurredAt === "string" || row.occurredAt instanceof Date ? row.occurredAt : new Date()), title: label.title, detail: `${depth ? `${depth} on ` : ""}${path}`, icon: label.icon };
+  });
+}
+
 export async function getOverview(context: AnalyticsContext) {
   const where = eventWhere(context);
   const [metrics, topPages, traffic] = await Promise.all([
@@ -116,8 +139,8 @@ export async function getLiveTracking(context: AnalyticsContext, windowSeconds: 
 }
 
 export async function getVisitors(context: AnalyticsContext) {
-  const rows = await queryPostgres<{ visitor_id: string; last_seen: Date; sessions: number; events: number; conversions: number; current_page: string; user_agent: string | null; source_referrer: string | null; scroll_depth: number | null }>(Prisma.sql`WITH scoped AS (SELECT * FROM tracking_events WHERE ${eventWhere(context)}), grouped AS (SELECT visitor_id, MAX(occurred_at) AS last_seen, COUNT(DISTINCT session_id)::int AS sessions, COUNT(*)::int AS events, COUNT(*) FILTER (WHERE event_type = 'conversion')::int AS conversions FROM scoped GROUP BY visitor_id), latest AS (SELECT DISTINCT ON (visitor_id) visitor_id, url AS current_page, context->>'userAgent' AS user_agent FROM scoped ORDER BY visitor_id, occurred_at DESC), first_referrer AS (SELECT DISTINCT ON (visitor_id) visitor_id, referrer AS source_referrer FROM scoped WHERE referrer IS NOT NULL ORDER BY visitor_id, occurred_at ASC), scrolls AS (SELECT visitor_id, MAX(CASE WHEN properties->>'depth' ~ '^[0-9]+$' THEN (properties->>'depth')::int END)::int AS scroll_depth FROM scoped WHERE event_type = 'scroll' GROUP BY visitor_id) SELECT grouped.visitor_id, grouped.last_seen, grouped.sessions, grouped.events, grouped.conversions, latest.current_page, latest.user_agent, first_referrer.source_referrer, scrolls.scroll_depth FROM grouped JOIN latest USING (visitor_id) LEFT JOIN first_referrer USING (visitor_id) LEFT JOIN scrolls USING (visitor_id) ORDER BY grouped.last_seen DESC ${pagination(context)}`);
-  return { visitors: rows.map((row) => ({ ...row, last_seen: iso(row.last_seen), ...visitorSignals(row.user_agent, row.source_referrer, row.scroll_depth), user_agent: undefined, source_referrer: undefined, scroll_depth: undefined })), pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
+  const rows = await queryPostgres<{ visitor_id: string; last_seen: Date; sessions: number; events: number; conversions: number; current_page: string; user_agent: string | null; source_referrer: string | null; scroll_depth: number | null; timeline_events: unknown }>(Prisma.sql`WITH scoped AS (SELECT * FROM tracking_events WHERE ${eventWhere(context)}), grouped AS (SELECT visitor_id, MAX(occurred_at) AS last_seen, COUNT(DISTINCT session_id)::int AS sessions, COUNT(*)::int AS events, COUNT(*) FILTER (WHERE event_type = 'conversion')::int AS conversions FROM scoped GROUP BY visitor_id), latest AS (SELECT DISTINCT ON (visitor_id) visitor_id, url AS current_page, context->>'userAgent' AS user_agent FROM scoped ORDER BY visitor_id, occurred_at DESC), first_referrer AS (SELECT DISTINCT ON (visitor_id) visitor_id, referrer AS source_referrer FROM scoped WHERE referrer IS NOT NULL ORDER BY visitor_id, occurred_at ASC), scrolls AS (SELECT visitor_id, MAX(CASE WHEN properties->>'depth' ~ '^[0-9]+$' THEN (properties->>'depth')::int END)::int AS scroll_depth FROM scoped WHERE event_type = 'scroll' GROUP BY visitor_id), timeline_ranked AS (SELECT visitor_id, event_type, occurred_at, split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) AS path, properties, ROW_NUMBER() OVER (PARTITION BY visitor_id ORDER BY occurred_at DESC) AS timeline_rank FROM scoped), timelines AS (SELECT visitor_id, json_agg(json_build_object('eventType', event_type, 'occurredAt', occurred_at, 'path', path, 'properties', properties) ORDER BY occurred_at ASC) AS timeline_events FROM timeline_ranked WHERE timeline_rank <= 20 GROUP BY visitor_id) SELECT grouped.visitor_id, grouped.last_seen, grouped.sessions, grouped.events, grouped.conversions, latest.current_page, latest.user_agent, first_referrer.source_referrer, scrolls.scroll_depth, timelines.timeline_events FROM grouped JOIN latest USING (visitor_id) LEFT JOIN first_referrer USING (visitor_id) LEFT JOIN scrolls USING (visitor_id) LEFT JOIN timelines USING (visitor_id) ORDER BY grouped.last_seen DESC ${pagination(context)}`);
+  return { visitors: rows.map((row) => ({ visitor_id: row.visitor_id, last_seen: iso(row.last_seen), sessions: row.sessions, events: row.events, conversions: row.conversions, current_page: row.current_page, ...visitorSignals(row.user_agent, row.source_referrer, row.scroll_depth), timeline: visitorTimeline(row.timeline_events) })), pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
 }
 
 export async function getSessions(context: AnalyticsContext) {
