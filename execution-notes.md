@@ -1597,3 +1597,15 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added live form recommendations based on abandonment and validation friction.
 - Connected validation-error summaries and recommendations to the Forms dashboard.
 - API tests and API/dashboard production builds passed.
+
+## Phase 25 — Behaviour Intelligence
+
+**Status:** Complete as a bounded behaviour-signal foundation
+
+- Added page-level click targets and visitor counts.
+- Added average scroll depth by page and low-depth issue detection.
+- Added repeated-click clusters as rage-click candidates.
+- Added unlinked click targets as dead-click candidates for review.
+- Added landing and exit page session summaries.
+- Connected live metrics and issue summaries to the Behaviour dashboard.
+- API tests and API/dashboard production builds passed.
