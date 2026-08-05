@@ -1567,3 +1567,13 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Connected the Visitors detail panel to live timeline data.
 - Preserved privacy by returning event type, safe path, timestamp, and scroll depth only.
 - API tests and API/dashboard production builds passed.
+
+## Phase 22 — CRO Insights Engine
+
+**Status:** Complete as an explainable, free-MVP insights foundation
+
+- Preserved the existing deterministic insight generator and expanded it with page-level content opportunities.
+- Detects low conversion rate, form abandonment, dense click activity, and high-traffic pages without recorded conversions.
+- Includes evidence, confidence, business impact, recommendation, priority, and expected improvement for each finding.
+- Limits page analysis to the top 20 pages and creates no paid AI-service dependency.
+- API tests and API/dashboard production builds passed.
