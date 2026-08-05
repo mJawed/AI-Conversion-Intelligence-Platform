@@ -1609,3 +1609,65 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added landing and exit page session summaries.
 - Connected live metrics and issue summaries to the Behaviour dashboard.
 - API tests and API/dashboard production builds passed.
+
+## Phase 26.1 — Unified CRO recommendation contract
+
+**Status:** Complete as a shared, explainable recommendation contract
+
+- Added shared CRO source, category, priority, confidence, evidence, signal, and recommendation types.
+- Added stable website-insight fingerprints with normalized source, rule, and entity keys.
+- Added path normalization, bounded/deduplicated evidence, and minimum sample thresholds.
+- Added contract tests for normalization, fingerprint stability, duplicate evidence, and sample gating.
+- No live recommendation rules or API response behavior changed in this phase.
+
+## Phase 26.2 — Unified CRO recommendation rules
+
+**Status:** Complete as a deterministic cross-signal rule engine
+
+- Added funnel bottleneck recommendations using ordered step drop-off evidence.
+- Added form validation-friction recommendations with minimum-start and error-rate gating.
+- Added rage-click, dead-click, and low-scroll behaviour recommendations with sample safeguards.
+- Added high-traffic/no-conversion page recommendations using normalized page evidence.
+- Connected the rule engine to the existing insights generator while preserving current insight lifecycle behavior.
+- API tests and API TypeScript build passed.
+
+## Phase 26.3 — Unified recommendation persistence
+
+**Status:** Complete as an idempotent and resilient insight refresh foundation
+
+- Changed insight upserts to refresh all generated fields and evidence while preserving review status.
+- Added candidate deduplication before persistence using stable website-scoped fingerprints.
+- Added partial-source resilience so one unavailable analytics query does not break the Insights endpoint.
+- Added unavailable-source metadata for operator-visible diagnostics.
+- Added persistence contract coverage for stable recommendation deduplication.
+- API tests and API TypeScript build passed.
+
+## Phase 26.4 — Insights Centre experience
+
+**Status:** Complete as a source-aware live recommendation workspace
+
+- Added recommendation source labels and source filtering.
+- Added visible warnings when one analytics source is temporarily unavailable.
+- Preserved live refresh, loading, empty, error, resolve, and dismiss states.
+- Added source context to recommendation details and replaced the misleading AI-ranked label with evidence-ranked messaging.
+- API tests, API build, dashboard production build, and diff validation passed.
+
+## Phase 26.5 — Verification and operational readiness
+
+**Status:** Complete as a verified free-MVP recommendation foundation
+
+- Added privacy contract coverage for recommendation output and bounded evidence.
+- Verified stable fingerprints, duplicate suppression, sample gating, and required CRO fields.
+- Verified API unit tests, API TypeScript build, dashboard production build, and `git diff --check`.
+- Confirmed no paid AI or infrastructure dependency was introduced.
+- Known limitation: expected conversion improvement remains a directional estimate, not a guarantee.
+
+## Phase 27 — Free in-dashboard CRO alerts
+
+**Status:** Complete as an in-app high-priority alert foundation
+
+- Added a bounded alert queue derived from open, high-priority persisted insights.
+- Added source, category, page, and review context to each alert.
+- Added alert count and alert cards to the live Insights Centre.
+- Resolved and dismissed insights are excluded from the active alert queue.
+- Documented the deliberate limitation: external email and Slack delivery require a later optional adapter.
