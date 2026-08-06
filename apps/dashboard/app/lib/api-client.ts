@@ -86,6 +86,8 @@ export type PasswordResetResponse = { message: string; resetToken?: string; rese
 export type ApiKey = { id: string; name: string; keyPrefix: string; lastUsedAt: string | null; revokedAt: string | null; createdAt: string };
 export type PrivacyRequest = { id: string; type: "EXPORT" | "DELETE"; status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED"; createdAt: string; completedAt: string | null };
 export type AuditLog = { id: string; action: string; entityType: string; entityId: string | null; metadata: unknown; createdAt: string };
+export type AlertEndpoint = { id: string; name: string; status: "ACTIVE" | "PAUSED"; lastDeliveryAt: string | null; lastDeliveryStatus: "PENDING" | "SENT" | "FAILED" | null; createdAt: string };
+export type AlertPreference = { websiteId: string; enabled: boolean; minimumPriority: "HIGH" | "MEDIUM" | "LOW" };
 export type AdminOverview = { range: { from: string; to: string }; users: { total: number; active: number; new: number }; organizations: { total: number; active: number; free: number; paid: number; new: number }; websites: { total: number }; events: { total: number } };
 export type AdminCustomer = { id: string; name: string; slug: string; plan: string; status: string; createdAt: string; updatedAt: string; owner: { id: string; name: string | null; email: string }; memberCount: number; websiteCount: number; lastActivityAt: string | null };
 export type AdminCustomerDetail = { id: string; name: string; slug: string; plan: string; status: string; createdAt: string; updatedAt: string; owner: { id: string; name: string | null; email: string; createdAt: string }; members: Array<{ id: string; role: string; createdAt: string; user: { id: string; name: string | null; email: string; createdAt: string } }>; websites: Array<{ id: string; name: string; domain: string; trackingId: string; status: string; installationStatus: string; createdAt: string; lastEventAt: string | null }>; usage: { events: number; lastActivityAt: string | null } };
@@ -161,6 +163,15 @@ export function getAdminBilling(accessToken: string) {
 export function getOrganizations(accessToken: string) {
   return authenticatedRequest<{ organizations: Organization[] }>("/api/v1/organizations", accessToken);
 }
+
+export function getAlertSettings(accessToken: string, organizationId: string, websiteId: string) {
+  return authenticatedRequest<{ endpoints: AlertEndpoint[]; preference: AlertPreference | null }>(`/api/v1/organizations/${organizationId}/alerts?websiteId=${encodeURIComponent(websiteId)}`, accessToken);
+}
+export function createAlertWebhook(accessToken: string, organizationId: string, name: string, url: string) { return authenticatedRequest<{ endpoint: AlertEndpoint }>(`/api/v1/organizations/${organizationId}/alerts/webhooks`, accessToken, { method: "POST", body: JSON.stringify({ name, url }) }); }
+export function deleteAlertWebhook(accessToken: string, organizationId: string, endpointId: string) { return authenticatedRequest<void>(`/api/v1/organizations/${organizationId}/alerts/webhooks/${endpointId}`, accessToken, { method: "DELETE" }); }
+export function testAlertWebhook(accessToken: string, organizationId: string, endpointId: string) { return authenticatedRequest<{ delivery: { status: string; responseCode: number | null; error: string | null } }>(`/api/v1/organizations/${organizationId}/alerts/webhooks/${endpointId}/test`, accessToken, { method: "POST" }); }
+export function updateAlertPreference(accessToken: string, organizationId: string, websiteId: string, input: Pick<AlertPreference, "enabled" | "minimumPriority">) { return authenticatedRequest<{ preference: AlertPreference }>(`/api/v1/organizations/${organizationId}/alerts/preferences`, accessToken, { method: "PATCH", body: JSON.stringify({ websiteId, ...input }) }); }
+export function dispatchAlerts(accessToken: string, organizationId: string, websiteId: string) { return authenticatedRequest<{ dispatched: number; endpoints: number; insights: number }>(`/api/v1/organizations/${organizationId}/alerts/dispatch`, accessToken, { method: "POST", body: JSON.stringify({ websiteId }) }); }
 
 export function getWebsites(accessToken: string, organizationId: string) {
   return authenticatedRequest<{ websites: ApiWebsite[] }>(`/api/v1/organizations/${organizationId}/websites`, accessToken);
