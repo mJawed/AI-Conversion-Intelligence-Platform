@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { eventSchema, maskUrl, maskValue, publicEventSummary, toTrackingEventData } from "../../src/collector-routes";
 import { analyticsQuerySchema, liveAnalyticsQuerySchema, normalizeAnalyticsQuery, toLiveEvent } from "../../src/analytics-service";
-import { encryptSecret } from "../../src/security";
+import { decryptSecret, encryptSecret } from "../../src/security";
+import { safeWebhookUrl } from "../../src/alert-routes";
 import { getTrackingVerificationStatus, normalizeDomain } from "../../src/website-routes";
 import { WebsiteStatus } from "@prisma/client";
 import { trackerScript } from "../../src/tracker";
@@ -136,6 +137,17 @@ test("encrypts API secrets without storing plaintext", () => {
   const encrypted = encryptSecret("ag_live_test-secret");
   assert.notEqual(encrypted, "ag_live_test-secret");
   assert.equal(encrypted.split(":").length, 3);
+  if (previous === undefined) delete process.env.ENCRYPTION_KEY; else process.env.ENCRYPTION_KEY = previous;
+});
+
+test("protects webhook secrets and rejects private webhook targets", () => {
+  const previous = process.env.ENCRYPTION_KEY;
+  process.env.ENCRYPTION_KEY = "a".repeat(64);
+  const webhookUrl = "https://example.com/alerts";
+  assert.equal(safeWebhookUrl(webhookUrl), webhookUrl);
+  assert.equal(decryptSecret(encryptSecret(webhookUrl)), webhookUrl);
+  assert.throws(() => safeWebhookUrl("http://localhost:4000/hook"), /INVALID_WEBHOOK_URL/);
+  assert.throws(() => safeWebhookUrl("http://192.168.1.10/hook"), /INVALID_WEBHOOK_URL/);
   if (previous === undefined) delete process.env.ENCRYPTION_KEY; else process.env.ENCRYPTION_KEY = previous;
 });
 

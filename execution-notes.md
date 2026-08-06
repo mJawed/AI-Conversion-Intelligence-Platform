@@ -1671,3 +1671,17 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added alert count and alert cards to the live Insights Centre.
 - Resolved and dismissed insights are excluded from the active alert queue.
 - Documented the deliberate limitation: external email and Slack delivery require a later optional adapter.
+
+## Phase 28 — Optional free webhook delivery
+
+**Status:** Complete
+
+- Added the alert webhook, preference, and delivery persistence models plus a deployment migration.
+- Added encrypted webhook URL storage and target validation that blocks local/private network destinations.
+- Added owner/admin API routes for endpoint CRUD, test delivery, alert preferences, and manual dispatch.
+- Added Settings → Alerts controls for enabling alerts, choosing the minimum priority, adding endpoints, testing delivery, and dispatching open insights.
+- Added idempotent delivery records and endpoint last-delivery status for operator visibility.
+- Added security contract tests for encryption round-trips and webhook URL validation.
+- Verified Prisma schema, API tests, API build, dashboard production build, and `git diff --check`.
+- Deployment note: the new Prisma migration will apply through the existing `db:migrate:deploy` start command.
+- Deliberate limitation: free MVP delivery is manual; scheduled/background dispatch and paid email/Slack adapters remain future work.

@@ -22,3 +22,16 @@ This phase does not send external email or Slack messages. External delivery sho
 - Alert payloads contain no visitor identifiers or sensitive form values.
 - The alert queue is bounded and works when no alerts exist.
 - API tests and dashboard production build pass.
+
+## Phase 28 — Optional free webhook delivery
+
+**Status:** Complete as a manual, encrypted, in-dashboard delivery adapter
+
+- Added organization-level webhook endpoint management for owner/admin users.
+- Added website-level alert enablement and minimum-priority preferences.
+- Encrypted webhook URLs at rest and rejected localhost/private-network targets.
+- Added test delivery and manual “dispatch now” actions from Settings → Alerts.
+- Added idempotent delivery records, response status, and last-delivery metadata.
+- Kept delivery payloads privacy-safe and limited to CRO insight context.
+- No paid email/Slack provider, background scheduler, or external queue was introduced.
+- API tests, API build, dashboard production build, and diff validation passed.
