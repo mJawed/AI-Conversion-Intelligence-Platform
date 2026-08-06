@@ -1,4 +1,4 @@
-import { createCipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import { recordRequest } from "./observability";
 
@@ -35,6 +35,14 @@ export function encryptSecret(secret: string) {
   const encrypted = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return `${iv.toString("hex")}:${tag.toString("hex")}:${encrypted.toString("hex")}`;
+}
+
+export function decryptSecret(value: string) {
+  const [ivHex, tagHex, encryptedHex] = value.split(":");
+  if (!ivHex || !tagHex || !encryptedHex) throw new Error("INVALID_ENCRYPTED_SECRET");
+  const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), Buffer.from(ivHex, "hex"));
+  decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+  return Buffer.concat([decipher.update(Buffer.from(encryptedHex, "hex")), decipher.final()]).toString("utf8");
 }
 
 export function createApiSecret() {

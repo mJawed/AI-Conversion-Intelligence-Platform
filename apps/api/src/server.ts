@@ -14,6 +14,7 @@ import { collectorRouter } from "./collector-routes";
 import { getPipelineMetrics, startEventConsumer, stopEventPipeline } from "./event-pipeline";
 import { analyticsRouter } from "./analytics-routes";
 import { apiKeyRouter } from "./api-key-routes";
+import { alertRouter } from "./alert-routes";
 import { privacyRouter, organizationPrivacyRouter } from "./privacy-routes";
 import { writeSafeRequestLog } from "./security";
 import { trackerScript } from "./tracker";
@@ -48,6 +49,7 @@ app.use("/api/v1/organizations/:organizationId/api-keys", apiKeyRouter);
 app.use("/api/v1/organizations/:organizationId/websites", websiteRouter);
 app.use("/api/v1/organizations/:organizationId/websites/:websiteId/funnels", funnelRouter);
 app.use("/api/v1/organizations/:organizationId/websites/:websiteId/insights", insightRouter);
+app.use("/api/v1/organizations/:organizationId/alerts", alertRouter);
 
 app.get("/health", (_request, response) => {
   response.json({ service: "api", status: "ok", timestamp: new Date().toISOString() });
