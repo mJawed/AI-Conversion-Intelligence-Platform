@@ -1685,3 +1685,76 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Verified Prisma schema, API tests, API build, dashboard production build, and `git diff --check`.
 - Deployment note: the new Prisma migration will apply through the existing `db:migrate:deploy` start command.
 - Deliberate limitation: free MVP delivery is manual; scheduled/background dispatch and paid email/Slack adapters remain future work.
+
+## Live Visitor Explorer — Phase 1
+
+**Status:** Complete as a privacy-safe contract foundation
+
+- Added shared live activity types for page views, navigation, clicks, forms, scroll, conversion, and heartbeat events.
+- Added bounded live visitor summary and activity timeline schemas.
+- Added path normalization that removes query strings and fragments before display.
+- Added stable anonymous visitor labels without exposing raw visitor or session identifiers.
+- Added safe metadata filtering that excludes identity and sensitive field values.
+- Added contract coverage for event mapping, path masking, anonymous labels, bounded fields, and privacy filtering.
+- No API or dashboard behavior changed in this phase.
+
+## Live Visitor Explorer — Phase 2
+
+**Status:** Complete as an authenticated live visitor list API
+
+- Added `GET /api/v1/analytics/live/visitors` scoped to an organization and website.
+- Added bounded five-minute active visitor aggregation with configurable live window and result limit.
+- Added anonymous visitor labels, current path, last activity, last-seen time, sessions, event count, device, browser, and source.
+- Added privacy-safe path normalization and excluded raw visitor/session identifiers from the response.
+- Reused authenticated analytics authorization, rate limiting, no-store caching, and unavailable-service handling.
+- Added dashboard API-client types for the upcoming Live Visitor Explorer interface.
+- Added contract coverage for live visitor mapping, masking, bounded fields, and anonymous identity.
+- API tests and API TypeScript build passed.
+
+## Live Visitor Explorer — Phase 3
+
+**Status:** Complete as a bounded per-visitor timeline API
+
+- Added `GET /api/v1/analytics/live/visitors/:visitorLabel/timeline`.
+- Added anonymous-label lookup without returning or requiring raw visitor IDs in the client contract.
+- Added readable timeline activity labels for pages, navigation, clicks, forms, scroll, conversion, and heartbeat events.
+- Added bounded five-minute timeline queries and pagination metadata.
+- Excluded sensitive metadata and normalized displayed paths before returning events.
+- Added dashboard API-client types for timeline consumption in the upcoming explorer UI.
+- Added contract coverage for custom event mapping, path masking, and privacy-safe labels.
+- API tests and API/dashboard TypeScript builds passed.
+
+## Live Visitor Explorer — Phase 4
+
+**Status:** Complete as a live visitor exploration interface
+
+- Added the overview Live visitor activity panel for live mode.
+- Added anonymous visitor list rows with current path and last activity.
+- Added selected visitor details for device, browser, source, sessions, and event count.
+- Added privacy-safe session timeline rendering with readable event labels and timestamps.
+- Added loading, empty, error, and retry states for visitor and timeline requests.
+- Preserved the existing summary realtime card and demo-mode behavior.
+- API tests, API build, dashboard production build, and diff validation passed.
+
+## Live Visitor Explorer — Phase 5
+
+**Status:** Complete as a bounded polling and stale-state foundation
+
+- Added visibility-aware visitor-list polling every 15 seconds.
+- Added selected timeline polling every 10 seconds.
+- Added in-flight guards and bounded failure handling to avoid duplicate requests and runaway polling.
+- Added stale state after repeated failures with a manual retry path.
+- Added active, recently active, and offline status presentation based on heartbeat age.
+- Added last-refresh timestamps and paused-update messaging.
+- Added duplicate-safe timeline rendering during repeated refreshes.
+- API tests and dashboard production build passed.
+
+## Live Visitor Explorer — Phase 7
+
+**Status:** Complete as the final anonymous visitor verification phase
+
+- Added contract coverage for raw identifier rejection and oversized path protection.
+- Added tracker runtime coverage for heartbeat delivery and baseline event ordering.
+- Added the manual two-visitor QA checklist covering separate journeys, polling recovery, stale visitors, and privacy checks.
+- Verified 21 API tests, API build, dashboard production build, and `git diff --check`.
+- Confirmed Phase 6 identity tracking remains intentionally skipped.
