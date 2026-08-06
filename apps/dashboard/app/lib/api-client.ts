@@ -69,6 +69,16 @@ export function getLiveTracking(accessToken: string, query: { organizationId: st
   const search = new URLSearchParams({ organizationId: query.organizationId, websiteId: query.websiteId, limit: String(query.limit ?? 25), windowSeconds: String(query.windowSeconds ?? 300) });
   return authenticatedRequest<LiveTracking>(`/api/v1/analytics/live?${search.toString()}`, accessToken);
 }
+export type LiveVisitor = { anonymousLabel: string; currentPath: string | null; lastActivity: "page_view" | "navigation" | "click" | "form_start" | "form_error" | "form_submit" | "scroll" | "conversion" | "heartbeat"; lastSeenAt: string; sessionCount: number; eventCount: number; device: string | null; browser: string | null; source: string | null };
+export function getLiveVisitors(accessToken: string, query: { organizationId: string; websiteId: string; limit?: number; windowSeconds?: number }) {
+  const search = new URLSearchParams({ organizationId: query.organizationId, websiteId: query.websiteId, ...(query.limit ? { limit: String(query.limit) } : {}), ...(query.windowSeconds ? { windowSeconds: String(query.windowSeconds) } : {}) });
+  return authenticatedRequest<{ visitors: LiveVisitor[]; activeVisitors: number; lastUpdatedAt: string; activityWindowSeconds: number; pagination: { limit: number; offset: number; hasMore: boolean } }>(`/api/v1/analytics/live/visitors?${search.toString()}`, accessToken);
+}
+export type LiveVisitorActivity = { type: LiveVisitor["lastActivity"]; occurredAt: string; path: string | null; label: string | null };
+export function getLiveVisitorTimeline(accessToken: string, query: { organizationId: string; websiteId: string; visitorLabel: string; limit?: number; windowSeconds?: number }) {
+  const search = new URLSearchParams({ organizationId: query.organizationId, websiteId: query.websiteId, ...(query.limit ? { limit: String(query.limit) } : {}), ...(query.windowSeconds ? { windowSeconds: String(query.windowSeconds) } : {}) });
+  return authenticatedRequest<{ visitor: { anonymousLabel: string }; timeline: LiveVisitorActivity[]; lastUpdatedAt: string; activityWindowSeconds: number; pagination: { limit: number; offset: number; hasMore: boolean } }>(`/api/v1/analytics/live/visitors/${encodeURIComponent(query.visitorLabel)}/timeline?${search.toString()}`, accessToken);
+}
 
 export type AnalyticsRange = { days: number; label: string };
 

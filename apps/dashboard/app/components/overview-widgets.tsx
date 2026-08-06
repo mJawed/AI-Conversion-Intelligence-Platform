@@ -1,5 +1,5 @@
 import type { InsightPreview, TopPage, TrendPoint } from "../data/mock";
-import type { LiveTracking } from "../lib/api-client";
+import type { LiveTracking, LiveVisitor, LiveVisitorActivity } from "../lib/api-client";
 
 export function TrafficChart({ points }: Readonly<{ points: TrendPoint[] }>) {
   const max = Math.max(...points.map((point) => point.value), 1);
@@ -43,6 +43,26 @@ export function RealtimeCard({ available = true, live, loading = false, error, s
       </>}
     </section>
   );
+}
+
+function activityIcon(type: LiveVisitorActivity["type"]) {
+  return { page_view: "⌂", navigation: "→", click: "↗", form_start: "▤", form_error: "!", form_submit: "✓", scroll: "↕", conversion: "✓", heartbeat: "•" }[type];
+}
+
+function timeLabel(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function visitorActivityStatus(lastSeenAt: string) {
+  const ageSeconds = Math.max(0, (Date.now() - new Date(lastSeenAt).getTime()) / 1000);
+  return ageSeconds <= 60 ? "Active" : ageSeconds <= 300 ? "Recently active" : "Offline";
+}
+
+export function LiveVisitorExplorer({ visitors, selectedVisitorLabel, timeline, loading = false, timelineLoading = false, error, timelineError, updatedAt, stale = false, timelineUpdatedAt, onSelect, onRetry }: Readonly<{ visitors: LiveVisitor[]; selectedVisitorLabel: string | null; timeline: LiveVisitorActivity[]; loading?: boolean; timelineLoading?: boolean; error?: string | null; timelineError?: string | null; updatedAt?: string | null; stale?: boolean; timelineUpdatedAt?: string | null; onSelect: (label: string) => void; onRetry?: () => void }>) {
+  const selected = visitors.find((visitor) => visitor.anonymousLabel === selectedVisitorLabel) ?? null;
+  const updatedLabel = updatedAt ? `Updated ${timeLabel(updatedAt)}` : "Waiting for refresh";
+  return <section className="live-explorer" aria-labelledby="live-explorer-heading"><div className="widget-heading"><div><p className="eyebrow">Realtime</p><h2 id="live-explorer-heading">Live visitor activity</h2></div><div className={`live-label${stale ? " live-label-muted" : ""}`}><i /> {stale ? "Stale" : visitors.length ? `${visitors.length} active` : "Waiting"}</div></div>{loading ? <div className="realtime-loading">Loading live visitors…</div> : error && !visitors.length ? <div className="realtime-error"><span>{error}</span>{onRetry && <button className="text-link realtime-retry" onClick={onRetry} type="button">Retry</button>}</div> : !visitors.length ? <div className="visitor-empty"><span>◌</span><strong>No visitors are active right now</strong><p>Active anonymous visitors will appear here during the five-minute live window.</p></div> : <><div className="live-explorer-meta"><span>{updatedLabel}{stale ? " · Updates paused" : " · Refreshes automatically"}</span>{error && <span className="realtime-error-inline">{error}</span>}</div><div className="visitor-layout"><div className="visitor-list-panel"><div className="list-heading"><div><p className="eyebrow">Active visitors</p><h3>{visitors.length} currently active</h3></div><span className="list-meta">Anonymous</span></div><div className="visitor-list">{visitors.map((visitor) => { const status = visitorActivityStatus(visitor.lastSeenAt); return <button className={`visitor-row${visitor.anonymousLabel === selectedVisitorLabel ? " selected" : ""}`} key={visitor.anonymousLabel} onClick={() => onSelect(visitor.anonymousLabel)} type="button"><span className="avatar">AN</span><span className="visitor-summary"><strong>{visitor.anonymousLabel}</strong><span>{visitor.currentPath ?? "Current page unavailable"} · {visitor.lastActivity.replaceAll("_", " ")}</span></span><span className={`status status-${status === "Active" ? "active" : status === "Recently active" ? "returned" : "bounced"}`}>{status}</span></button>; })}</div></div><div className="visitor-detail">{selected ? <><div className="detail-heading"><div className="detail-identity"><span className="avatar avatar-large">AN</span><div><p className="eyebrow">Anonymous visitor</p><h3>{selected.anonymousLabel}</h3><span className={`status status-${visitorActivityStatus(selected.lastSeenAt) === "Active" ? "active" : "returned"}`}>{visitorActivityStatus(selected.lastSeenAt)}</span></div></div><span className={`live-label${stale ? " live-label-muted" : ""}`}><i /> {stale ? "Stale" : "Live"}</span></div><div className="detail-stats"><div><span>Current page</span><strong>{selected.currentPath ?? "Not available"}</strong></div><div><span>Last activity</span><strong>{selected.lastActivity.replaceAll("_", " ")}</strong></div><div><span>Events</span><strong>{selected.eventCount}</strong></div></div><div className="signal-grid live-signal-grid"><div><span>Device</span><strong>{selected.device ?? "Not available"}</strong></div><div><span>Browser</span><strong>{selected.browser ?? "Not available"}</strong></div><div><span>Source</span><strong>{selected.source ?? "Not available"}</strong></div><div><span>Sessions</span><strong>{selected.sessionCount}</strong></div></div><div className="detail-section"><div className="detail-section-heading"><h3>Session timeline</h3><span className="list-meta">{timelineUpdatedAt ? `Updated ${timeLabel(timelineUpdatedAt)}` : "Last 5 minutes"}</span></div>{timelineLoading ? <div className="realtime-loading">Loading activity…</div> : timelineError ? <div className="realtime-error">{timelineError}</div> : timeline.length ? <div className="timeline">{timeline.map((event, index) => <div className="timeline-event" key={`${event.occurredAt}-${event.type}-${event.path ?? ""}-${index}`}><span className="timeline-icon">{activityIcon(event.type)}</span><div><strong>{event.label ?? event.type.replaceAll("_", " ")}</strong><p>{event.path ?? "Page unavailable"}</p></div><time>{timeLabel(event.occurredAt)}</time></div>)}</div> : <p className="widget-empty">No session activity is available yet.</p>}</div></> : <div className="visitor-empty"><span>◌</span><strong>Select a visitor</strong><p>Choose an active visitor to inspect their recent activity.</p></div>}</div></div></>}</section>;
 }
 
 export function TopPages({ pages }: Readonly<{ pages: TopPage[] }>) {

@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DashboardShell, EmptyState, PageHeader } from "./dashboard-shell";
-import { InsightPreview, RealtimeCard, TopPages, TrafficChart } from "./overview-widgets";
+import { InsightPreview, LiveVisitorExplorer, RealtimeCard, TopPages, TrafficChart } from "./overview-widgets";
 import { ErrorState, LoadingState } from "./ui";
 import { insightPreviews, overviewMetrics, topPages, trafficTrend, type InsightPreview as InsightPreviewType, type Metric, type TopPage, type TrendPoint } from "../data/mock";
-import { getAuthenticatedAnalytics, getLiveTracking, type LiveTracking } from "../lib/api-client";
+import { getAuthenticatedAnalytics, getLiveTracking, getLiveVisitorTimeline, getLiveVisitors, type LiveTracking, type LiveVisitor, type LiveVisitorActivity } from "../lib/api-client";
 import { useAccount, useMockData } from "../lib/account-context";
 
 type OverviewResponse = {
@@ -51,6 +51,17 @@ export function OverviewView() {
   const [liveLoading, setLiveLoading] = useState(!useMockData);
   const [liveStale, setLiveStale] = useState(false);
   const [liveRetryKey, setLiveRetryKey] = useState(0);
+  const [liveVisitors, setLiveVisitors] = useState<LiveVisitor[]>([]);
+  const [selectedLiveVisitor, setSelectedLiveVisitor] = useState<string | null>(null);
+  const [liveVisitorsLoading, setLiveVisitorsLoading] = useState(!useMockData);
+  const [liveVisitorsError, setLiveVisitorsError] = useState<string | null>(null);
+  const [liveVisitorsRetryKey, setLiveVisitorsRetryKey] = useState(0);
+  const [liveVisitorsUpdatedAt, setLiveVisitorsUpdatedAt] = useState<string | null>(null);
+  const [liveVisitorsStale, setLiveVisitorsStale] = useState(false);
+  const [visitorTimeline, setVisitorTimeline] = useState<LiveVisitorActivity[]>([]);
+  const [visitorTimelineLoading, setVisitorTimelineLoading] = useState(false);
+  const [visitorTimelineError, setVisitorTimelineError] = useState<string | null>(null);
+  const [visitorTimelineUpdatedAt, setVisitorTimelineUpdatedAt] = useState<string | null>(null);
   const selectedRange = ranges.find((range) => range.days === rangeDays) ?? ranges[1];
 
   useEffect(() => {
@@ -114,6 +125,53 @@ export function OverviewView() {
     return () => { cancelled = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", onVisibilityChange); };
   }, [account.selectedOrganization, account.selectedWebsite, account.tokens, liveRetryKey]);
 
+  useEffect(() => {
+    if (useMockData || !account.tokens?.accessToken || !account.selectedOrganization || !account.selectedWebsite) { setLiveVisitors([]); setSelectedLiveVisitor(null); setLiveVisitorsLoading(false); setLiveVisitorsStale(false); return; }
+    let cancelled = false;
+    let firstRequest = true;
+    let inFlight = false;
+    let consecutiveFailures = 0;
+    let pollingStopped = false;
+    const loadVisitors = async () => {
+      if (inFlight || pollingStopped || document.visibilityState !== "visible") return;
+      inFlight = true;
+      if (firstRequest) setLiveVisitorsLoading(true);
+      try {
+        const result = await getLiveVisitors(account.tokens!.accessToken, { organizationId: account.selectedOrganization!.id, websiteId: account.selectedWebsite!.id });
+        if (!cancelled) { consecutiveFailures = 0; setLiveVisitors(result.visitors); setLiveVisitorsUpdatedAt(result.lastUpdatedAt); setLiveVisitorsStale(false); setLiveVisitorsError(null); setSelectedLiveVisitor((current) => result.visitors.some((visitor) => visitor.anonymousLabel === current) ? current : result.visitors[0]?.anonymousLabel ?? null); }
+      } catch (requestError) {
+        consecutiveFailures += 1;
+        if (!cancelled) { setLiveVisitorsError(requestError instanceof Error ? requestError.message : "Could not load live visitors."); if (consecutiveFailures >= 3) { pollingStopped = true; setLiveVisitorsStale(true); } }
+      } finally { inFlight = false; if (!cancelled) { firstRequest = false; setLiveVisitorsLoading(false); } }
+    };
+    const onVisibilityChange = () => { if (document.visibilityState !== "visible") return; pollingStopped = false; consecutiveFailures = 0; void loadVisitors(); };
+    void loadVisitors();
+    const interval = window.setInterval(() => { if (document.visibilityState === "visible") void loadVisitors(); }, 15000);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => { cancelled = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", onVisibilityChange); };
+  }, [account.selectedOrganization, account.selectedWebsite, account.tokens, liveVisitorsRetryKey]);
+
+  useEffect(() => {
+    if (useMockData || !selectedLiveVisitor || !account.tokens?.accessToken || !account.selectedOrganization || !account.selectedWebsite) { setVisitorTimeline([]); setVisitorTimelineLoading(false); setVisitorTimelineUpdatedAt(null); return; }
+    let cancelled = false;
+    let inFlight = false;
+    const loadTimeline = async () => {
+      if (inFlight || document.visibilityState !== "visible") return;
+      inFlight = true;
+      setVisitorTimelineLoading(true);
+      try {
+        const result = await getLiveVisitorTimeline(account.tokens!.accessToken, { organizationId: account.selectedOrganization!.id, websiteId: account.selectedWebsite!.id, visitorLabel: selectedLiveVisitor });
+        if (!cancelled) { const unique = new Map(result.timeline.map((event) => [`${event.occurredAt}|${event.type}|${event.path ?? ""}|${event.label ?? ""}`, event])); setVisitorTimeline(Array.from(unique.values())); setVisitorTimelineUpdatedAt(result.lastUpdatedAt); setVisitorTimelineError(null); }
+      } catch (requestError) { if (!cancelled) setVisitorTimelineError(requestError instanceof Error ? requestError.message : "Could not load visitor activity."); }
+      finally { inFlight = false; if (!cancelled) setVisitorTimelineLoading(false); }
+    };
+    const onVisibilityChange = () => { if (document.visibilityState === "visible") void loadTimeline(); };
+    void loadTimeline();
+    const interval = window.setInterval(() => { if (document.visibilityState === "visible") void loadTimeline(); }, 10000);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => { cancelled = true; window.clearInterval(interval); document.removeEventListener("visibilitychange", onVisibilityChange); };
+  }, [account.selectedOrganization, account.selectedWebsite, account.tokens, selectedLiveVisitor]);
+
   const metrics = useMockData ? overviewMetrics : data ? liveMetrics(data, live) : [];
   const points: TrendPoint[] = useMockData ? trafficTrend : (data?.traffic ?? []).map((point) => ({ label: formatDay(point.day), value: Number(point.visitors) }));
   const pages: TopPage[] = useMockData ? topPages : (data?.topPages ?? []).map((page) => ({ path: page.path, visitors: formatNumber(Number(page.visitors)), share: `${Number(page.share).toFixed(1)}%` }));
@@ -131,10 +189,11 @@ export function OverviewView() {
     return <>
       <div className="metrics">{metrics.map((metric) => <article className="metric" key={metric.label}><span>{metric.label}</span><strong>{metric.value}</strong><p>{metric.detail} <span className={`metric-change ${metric.tone ?? "neutral"}`}>{metric.change}</span></p></article>)}</div>
       <div className="overview-grid"><TrafficChart points={points} /><RealtimeCard available live={live} loading={liveLoading} error={liveError} stale={liveStale} onRetry={() => setLiveRetryKey((key) => key + 1)} /></div>
+      {!useMockData && <LiveVisitorExplorer visitors={liveVisitors} selectedVisitorLabel={selectedLiveVisitor} timeline={visitorTimeline} loading={liveVisitorsLoading} timelineLoading={visitorTimelineLoading} error={liveVisitorsError} timelineError={visitorTimelineError} updatedAt={liveVisitorsUpdatedAt} stale={liveVisitorsStale} timelineUpdatedAt={visitorTimelineUpdatedAt} onSelect={setSelectedLiveVisitor} onRetry={() => setLiveVisitorsRetryKey((key) => key + 1)} />}
       <div className="overview-grid lower-grid"><TopPages pages={pages} /><InsightPreview insights={insights} empty={!useMockData} /></div>
       <div className="setup-reminder"><div><strong>Want to connect another website?</strong><p>Install the tracking SDK and start collecting conversion signals.</p></div><Link className="button button-dark" href="/onboarding">＋ Add website</Link></div>
     </>;
-  }, [account, data, error, hasLiveData, insights, isEmpty, isLoading, live, liveError, liveLoading, liveStale, metrics, pages, points, useMockData]);
+  }, [account, data, error, hasLiveData, insights, isEmpty, isLoading, live, liveError, liveLoading, liveStale, liveVisitors, liveVisitorsError, liveVisitorsLoading, liveVisitorsStale, liveVisitorsUpdatedAt, metrics, pages, points, selectedLiveVisitor, visitorTimeline, visitorTimelineError, visitorTimelineLoading, visitorTimelineUpdatedAt, useMockData]);
 
   return <DashboardShell><PageHeader action={<Link className="button" href="/onboarding">＋ Add website</Link>} /><div className="section-heading"><div><p className="eyebrow">Overview</p><h2>Your growth signals</h2></div><div className="filters"><label className="sr-only" htmlFor="overview-website">Website</label><select id="overview-website" className="website-pill" value={account.selectedWebsite?.id ?? ""} onChange={(event) => account.selectWebsite(event.target.value)} disabled={useMockData || account.websites.length === 0}><option value="">{websiteLabel}</option>{account.websites.map((website) => <option key={website.id} value={website.id}>{website.name}</option>)}</select><label className="sr-only" htmlFor="overview-range">Date range</label><select id="overview-range" className="date-pill" value={rangeDays} onChange={(event) => setRangeDays(Number(event.target.value))}><option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option></select></div></div>{useMockData && <p className="mock-notice">Demo data is enabled. Set <code>NEXT_PUBLIC_USE_MOCK_DATA=false</code> to view live analytics.</p>}{dashboardContent}</DashboardShell>;
 }
