@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "./auth-routes";
-import { AnalyticsUnavailableError, analyticsQuerySchema, authorizeAnalyticsContext, getBehaviour, getForms, getFunnels, getHeatmaps, getInsights, getLiveTracking, getLiveVisitors, getOverview, getReplays, getSessions, getVisitors, liveAnalyticsQuerySchema, normalizeAnalyticsQuery } from "./analytics-service";
+import { AnalyticsUnavailableError, analyticsQuerySchema, authorizeAnalyticsContext, getBehaviour, getForms, getFunnels, getHeatmaps, getInsights, getLiveTracking, getLiveVisitorTimeline, getLiveVisitors, getOverview, getReplays, getSessions, getVisitors, liveAnalyticsQuerySchema, normalizeAnalyticsQuery } from "./analytics-service";
 
 export const analyticsRouter = Router();
 analyticsRouter.use(requireAuth);
