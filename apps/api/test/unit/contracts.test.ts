@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { eventSchema, maskUrl, maskValue, publicEventSummary, toTrackingEventData } from "../../src/collector-routes";
-import { analyticsQuerySchema, liveAnalyticsQuerySchema, normalizeAnalyticsQuery, toLiveEvent } from "../../src/analytics-service";
+import { analyticsQuerySchema, liveAnalyticsQuerySchema, normalizeAnalyticsQuery, toLiveEvent, toLiveVisitor, toLiveVisitorActivity } from "../../src/analytics-service";
 import { decryptSecret, encryptSecret } from "../../src/security";
 import { safeWebhookUrl } from "../../src/alert-routes";
 import { getTrackingVerificationStatus, normalizeDomain } from "../../src/website-routes";
@@ -11,6 +11,7 @@ import { getPipelineMetrics, publishEvent, toClickHouseRow } from "../../src/eve
 import { getInfrastructureConfig, getMaxTrackingEventsPerDay, getEventRetentionDays, getAnalyticsStorage, isFreeMvpMode } from "../../src/config";
 import { createCROFingerprint, hasCROSample, normalizeCROEvidence, normalizeCROPath, normalizeCRORecommendation } from "../../src/cro-recommendations";
 import { buildCRORecommendations } from "../../src/cro-recommendation-rules";
+import { liveActivityTypeSchema, liveActivityLabel, liveVisitorActivitySchema, liveVisitorSummarySchema, normalizeLivePath, sanitizeLiveMetadata, toAnonymousVisitorLabel, toLiveActivityType } from "../../src/live-visitor-contract";
 
 test("normalizes website domains and rejects paths", () => {
   assert.equal(normalizeDomain("https://WWW.Example.com/"), "www.example.com");
@@ -129,6 +130,28 @@ test("keeps live tracking queries bounded and privacy-safe", () => {
   const event = toLiveEvent({ event_id: "evt_1", event_type: "page_view", occurred_at: "2026-08-03T00:00:00.000Z", path: "/pricing" });
   assert.deepEqual(event, { eventId: "evt_1", eventType: "page_view", occurredAt: "2026-08-03T00:00:00.000Z", path: "/pricing" });
   assert.equal("visitorId" in event, false);
+});
+
+test("defines privacy-safe live visitor contracts", () => {
+  assert.equal(normalizeLivePath("https://example.com/pricing?email=hidden#plans"), "/pricing");
+  assert.equal(normalizeLivePath("pricing?token=hidden"), "/pricing");
+  assert.equal(toAnonymousVisitorLabel("visitor_123"), "Visitor #D556B1");
+  assert.equal(toLiveActivityType("custom", "live_heartbeat"), "heartbeat");
+  assert.equal(toLiveActivityType("unknown"), null);
+  assert.equal(liveActivityTypeSchema.parse("conversion"), "conversion");
+  assert.deepEqual(sanitizeLiveMetadata({ cta: " Start now ", formId: "signup", email: "secret@example.com", password: "hidden", ignored: "nope" }), { cta: "Start now", formId: "signup" });
+  assert.deepEqual(liveVisitorActivitySchema.parse({ type: "click", occurredAt: "2026-08-06T00:00:00.000Z", path: "/pricing", label: "Start now" }), { type: "click", occurredAt: "2026-08-06T00:00:00.000Z", path: "/pricing", label: "Start now" });
+  assert.equal(liveVisitorSummarySchema.parse({ anonymousLabel: "Visitor #ABC123", currentPath: "/pricing", lastActivity: "click", lastSeenAt: "2026-08-06T00:00:00.000Z", sessionCount: 1, eventCount: 2, device: "Desktop", browser: "Chrome", source: null }).anonymousLabel, "Visitor #ABC123");
+  const visitor = toLiveVisitor({ visitor_id: "visitor-secret", last_seen: "2026-08-06T00:00:00.000Z", sessions: 1, events: 3, current_path: "https://example.com/pricing?email=secret@example.com", event_type: "click", event_name: null, user_agent: "Mozilla/5.0 Chrome/120.0", source_referrer: "https://google.com/search?q=secret" });
+  assert.equal(visitor.currentPath, "/pricing");
+  assert.match(visitor.anonymousLabel, /^Visitor #[A-F0-9]{6}$/);
+  assert.equal("visitor_id" in visitor, false);
+  assert.equal(visitor.lastActivity, "click");
+  assert.throws(() => liveVisitorSummarySchema.parse({ anonymousLabel: "raw-visitor-id", currentPath: "/pricing", lastActivity: "click", lastSeenAt: "2026-08-06T00:00:00.000Z", sessionCount: 1, eventCount: 2, device: "Desktop", browser: "Chrome", source: null }));
+  assert.throws(() => liveVisitorActivitySchema.parse({ type: "click", occurredAt: "2026-08-06T00:00:00.000Z", path: `/${"x".repeat(512)}`, label: "Click" }));
+  const activity = toLiveVisitorActivity({ event_id: "evt-1", event_type: "custom", event_name: "form_error", occurred_at: new Date("2026-08-06T00:00:00.000Z"), path: "https://example.com/signup?email=hidden", properties: { formId: "signup", email: "hidden@example.com" } });
+  assert.deepEqual(activity, { type: "form_error", occurredAt: "2026-08-06T00:00:00.000Z", path: "/signup", label: "Form error in signup" });
+  assert.equal(liveActivityLabel("heartbeat", { email: "hidden@example.com" }), "Active on page");
 });
 
 test("encrypts API secrets without storing plaintext", () => {

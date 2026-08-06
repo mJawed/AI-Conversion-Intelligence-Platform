@@ -15,6 +15,7 @@ function createStorage() {
 function runTracker(attributes: Record<string, string> = {}) {
   const listeners = new Map<string, (event: any) => void>();
   const beacons: any[] = [];
+  const intervals: Array<() => void> = [];
   const localStorage = createStorage();
   const sessionStorage = createStorage();
   const script = { src: "http://localhost:4000/tracker.js", getAttribute: (name: string) => attributes[name] ?? null };
@@ -45,6 +46,8 @@ function runTracker(attributes: Record<string, string> = {}) {
       addEventListener: (name: string, handler: (event: any) => void) => listeners.set(`window:${name}`, handler),
       setTimeout: (handler: () => void) => { handler(); return 1; },
       clearTimeout: () => undefined,
+      setInterval: (handler: () => void) => { intervals.push(handler); return intervals.length; },
+      clearInterval: () => undefined,
       fetch: async () => undefined,
       aiGrowth: undefined,
     },
@@ -57,11 +60,11 @@ function runTracker(attributes: Record<string, string> = {}) {
   context.window.document = context.document;
   vm.runInNewContext(trackerScript, context);
   context.window.aiGrowth.flush();
-  return { context, listeners, beacons };
+  return { context, listeners, beacons, intervals };
 }
 
 test("tracker sends baseline, interaction, form, scroll, conversion, and SPA events", () => {
-  const { context, listeners, beacons } = runTracker({ "data-tracking-id": "trk_12345678" });
+  const { context, listeners, beacons, intervals } = runTracker({ "data-tracking-id": "trk_12345678" });
   assert.deepEqual(beacons.slice(0, 2).map((event) => event.eventType), ["session_start", "page_view"]);
 
   listeners.get("document:click")!({ target: { closest: () => ({ tagName: "A", id: "hero-cta", href: "https://site.example/signup?email=hidden" , getAttribute: () => null }) } });
@@ -74,6 +77,7 @@ test("tracker sends baseline, interaction, form, scroll, conversion, and SPA eve
   context.window.location.pathname = "/pricing";
   context.window.history.pushState({}, "", "/pricing");
   context.window.aiGrowth.conversion({ goal: "signup" });
+  intervals[0]?.();
   context.window.aiGrowth.flush();
 
   const types = beacons.map((event) => event.eventType);
@@ -85,6 +89,7 @@ test("tracker sends baseline, interaction, form, scroll, conversion, and SPA eve
   assert.equal(beacons.find((event) => event.eventType === "form_start").properties.formId, "signup");
   assert.equal(beacons.find((event) => event.eventType === "click").properties.href, "https://site.example/signup");
   assert.equal(beacons.filter((event) => event.eventType === "page_view").length, 2);
+  assert.equal(intervals.length, 1);
 });
 
 test("consent mode stays silent until consent is granted and respects opt-out", () => {
@@ -93,9 +98,9 @@ test("consent mode stays silent until consent is granted and respects opt-out", 
   assert.equal(context.window.aiGrowth.hasConsent(), false);
   context.window.aiGrowth.grantConsent();
   context.window.aiGrowth.flush();
-  assert.equal(beacons.length, 3);
-  assert.equal(beacons.filter((event) => event.eventType === "custom").length, 1);
+  assert.equal(beacons.length, 4);
+  assert.equal(beacons.filter((event) => event.eventType === "custom").length, 2);
   context.window.aiGrowth.optOut();
   context.window.aiGrowth.conversion({ goal: "blocked" });
-  assert.equal(beacons.length, 3);
+  assert.equal(beacons.length, 4);
 });
