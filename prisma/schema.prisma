@@ -70,6 +70,17 @@ enum InsightStatus {
   RESOLVED
 }
 
+enum AlertEndpointStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum AlertDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 model User {
   id                  String               @id @default(uuid()) @db.Uuid
   name                String?
@@ -109,6 +120,8 @@ model Organization {
   subscriptions   Subscription[]
   funnels         Funnel[]
   insights        Insight[]
+  alertPreferences AlertPreference[]
+  webhookEndpoints WebhookEndpoint[]
 
   @@index([ownerId])
   @@map("organizations")
@@ -149,6 +162,7 @@ model Website {
   funnels            Funnel[]
   insights           Insight[]
   consentRecords     PrivacyConsent[]
+  alertPreferences   AlertPreference[]
 
   @@index([organizationId])
   @@index([domain])
@@ -212,11 +226,64 @@ model Insight {
   resolvedAt          DateTime?     @map("resolved_at")
   organization        Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   website             Website       @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  alertDeliveries     AlertDelivery[]
 
   @@unique([websiteId, fingerprint])
   @@index([organizationId, status, updatedAt])
   @@index([websiteId, category, severity])
   @@map("insights")
+}
+
+model AlertPreference {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  websiteId       String       @map("website_id") @db.Uuid
+  enabled         Boolean      @default(true)
+  minimumPriority String       @default("HIGH") @map("minimum_priority")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  website         Website      @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, websiteId])
+  @@index([websiteId, enabled])
+  @@map("alert_preferences")
+}
+
+model WebhookEndpoint {
+  id                  String              @id @default(uuid()) @db.Uuid
+  organizationId      String              @map("organization_id") @db.Uuid
+  name                String
+  encryptedUrl        String              @map("encrypted_url")
+  status              AlertEndpointStatus @default(ACTIVE)
+  lastDeliveryAt      DateTime?           @map("last_delivery_at")
+  lastDeliveryStatus  AlertDeliveryStatus? @map("last_delivery_status")
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries          AlertDelivery[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, status])
+  @@map("webhook_endpoints")
+}
+
+model AlertDelivery {
+  id           String              @id @default(uuid()) @db.Uuid
+  endpointId   String              @map("endpoint_id") @db.Uuid
+  insightId    String              @map("insight_id") @db.Uuid
+  status       AlertDeliveryStatus @default(PENDING)
+  responseCode Int?                @map("response_code")
+  attemptCount Int                 @default(0) @map("attempt_count")
+  error        String?
+  deliveredAt  DateTime?           @map("delivered_at")
+  createdAt    DateTime            @default(now()) @map("created_at")
+  endpoint     WebhookEndpoint     @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  insight      Insight             @relation(fields: [insightId], references: [id], onDelete: Cascade)
+
+  @@unique([endpointId, insightId])
+  @@index([endpointId, status, createdAt])
+  @@map("alert_deliveries")
 }
 
 model PrivacyConsent {
