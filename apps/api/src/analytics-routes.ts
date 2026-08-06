@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { requireAuth } from "./auth-routes";
-import { AnalyticsUnavailableError, analyticsQuerySchema, authorizeAnalyticsContext, getBehaviour, getForms, getFunnels, getHeatmaps, getInsights, getLiveTracking, getOverview, getReplays, getSessions, getVisitors, liveAnalyticsQuerySchema, normalizeAnalyticsQuery } from "./analytics-service";
+import { AnalyticsUnavailableError, analyticsQuerySchema, authorizeAnalyticsContext, getBehaviour, getForms, getFunnels, getHeatmaps, getInsights, getLiveTracking, getLiveVisitors, getOverview, getReplays, getSessions, getVisitors, liveAnalyticsQuerySchema, normalizeAnalyticsQuery } from "./analytics-service";
 
 export const analyticsRouter = Router();
 analyticsRouter.use(requireAuth);
@@ -62,6 +62,48 @@ analyticsRouter.get("/live", async (request, response) => {
     if (error instanceof AnalyticsUnavailableError) { response.status(503).json({ error: "ANALYTICS_UNAVAILABLE", message: error.message }); return; }
     console.error("Live analytics request failed", error);
     response.status(500).json({ error: "LIVE_ANALYTICS_FAILED" });
+  }
+});
+analyticsRouter.get("/live/visitors", async (request, response) => {
+  const parsed = liveAnalyticsQuerySchema.safeParse(request.query);
+  if (!parsed.success) { response.status(400).json({ error: "INVALID_LIVE_QUERY", details: parsed.error.flatten() }); return; }
+  const rate = checkLiveRateLimit(`${request.authUserId}:${parsed.data.organizationId}:${parsed.data.websiteId}`);
+  if (!rate.allowed) { response.setHeader("Retry-After", String(rate.retryAfterSeconds)); response.status(429).json({ error: "LIVE_RATE_LIMITED", retryAfterSeconds: rate.retryAfterSeconds }); return; }
+  response.setHeader("Cache-Control", "no-store");
+  try {
+    const now = new Date();
+    const context = normalizeAnalyticsQuery({ ...parsed.data, from: new Date(now.getTime() - parsed.data.windowSeconds * 1000).toISOString(), to: now.toISOString(), offset: 0 });
+    await authorizeAnalyticsContext(context, request.authUserId!);
+    response.json(await getLiveVisitors(context, parsed.data.windowSeconds));
+  } catch (error) {
+    if (error instanceof Error && error.message === "ANALYTICS_ACCESS_DENIED") { response.status(403).json({ error: "ANALYTICS_ACCESS_DENIED" }); return; }
+    if (error instanceof Error && error.message === "ORGANIZATION_INACTIVE") { response.status(403).json({ error: "ORGANIZATION_INACTIVE" }); return; }
+    if (error instanceof Error && error.message === "WEBSITE_NOT_FOUND") { response.status(404).json({ error: "WEBSITE_NOT_FOUND" }); return; }
+    if (error instanceof AnalyticsUnavailableError) { response.status(503).json({ error: "ANALYTICS_UNAVAILABLE", message: error.message }); return; }
+    console.error("Live visitor request failed", error);
+    response.status(500).json({ error: "LIVE_VISITORS_FAILED" });
+  }
+});
+analyticsRouter.get("/live/visitors/:visitorLabel/timeline", async (request, response) => {
+  const parsed = liveAnalyticsQuerySchema.safeParse(request.query);
+  if (!parsed.success) { response.status(400).json({ error: "INVALID_LIVE_QUERY", details: parsed.error.flatten() }); return; }
+  const rate = checkLiveRateLimit(`${request.authUserId}:${parsed.data.organizationId}:${parsed.data.websiteId}`);
+  if (!rate.allowed) { response.setHeader("Retry-After", String(rate.retryAfterSeconds)); response.status(429).json({ error: "LIVE_RATE_LIMITED", retryAfterSeconds: rate.retryAfterSeconds }); return; }
+  response.setHeader("Cache-Control", "no-store");
+  try {
+    const now = new Date();
+    const context = normalizeAnalyticsQuery({ ...parsed.data, from: new Date(now.getTime() - parsed.data.windowSeconds * 1000).toISOString(), to: now.toISOString(), offset: 0 });
+    await authorizeAnalyticsContext(context, request.authUserId!);
+    response.json(await getLiveVisitorTimeline(context, parsed.data.windowSeconds, request.params.visitorLabel));
+  } catch (error) {
+    if (error instanceof Error && error.message === "ANALYTICS_ACCESS_DENIED") { response.status(403).json({ error: "ANALYTICS_ACCESS_DENIED" }); return; }
+    if (error instanceof Error && error.message === "ORGANIZATION_INACTIVE") { response.status(403).json({ error: "ORGANIZATION_INACTIVE" }); return; }
+    if (error instanceof Error && error.message === "WEBSITE_NOT_FOUND") { response.status(404).json({ error: "WEBSITE_NOT_FOUND" }); return; }
+    if (error instanceof Error && error.message === "LIVE_VISITOR_NOT_FOUND") { response.status(404).json({ error: "LIVE_VISITOR_NOT_FOUND" }); return; }
+    if (error instanceof AnalyticsUnavailableError) { response.status(503).json({ error: "ANALYTICS_UNAVAILABLE", message: error.message }); return; }
+    if (error instanceof Error && error.name === "ZodError") { response.status(400).json({ error: "INVALID_VISITOR_LABEL" }); return; }
+    console.error("Live visitor timeline request failed", error);
+    response.status(500).json({ error: "LIVE_TIMELINE_FAILED" });
   }
 });
 analyticsRouter.get("/visitors", (request, response) => run(request, response, getVisitors));

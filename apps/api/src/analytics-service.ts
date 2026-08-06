@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "./lib/prisma";
 import { buildCRORecommendations, evidenceText } from "./cro-recommendation-rules";
+import { anonymousVisitorLabelSchema, liveActivityLabel, liveVisitorActivitySchema, normalizeLivePath, sanitizeLiveMetadata, toAnonymousVisitorLabel, toLiveActivityType, type LiveVisitorActivity, type LiveVisitorSummary } from "./live-visitor-contract";
 
 export const analyticsQuerySchema = z.object({
   organizationId: z.string().uuid(),
@@ -137,6 +138,52 @@ export async function getLiveTracking(context: AnalyticsContext, windowSeconds: 
       activityWindowSeconds: windowSeconds,
     },
   };
+}
+
+type LiveVisitorRow = { visitor_id: string; last_seen: Date; sessions: number; events: number; current_path: string | null; event_type: string; event_name: string | null; user_agent: string | null; source_referrer: string | null };
+
+export function toLiveVisitor(row: LiveVisitorRow): LiveVisitorSummary {
+  const signals = visitorSignals(row.user_agent, row.source_referrer, null);
+  return {
+    anonymousLabel: toAnonymousVisitorLabel(row.visitor_id),
+    currentPath: normalizeLivePath(row.current_path),
+    lastActivity: toLiveActivityType(row.event_type, row.event_name) ?? "page_view",
+    lastSeenAt: iso(row.last_seen),
+    sessionCount: Number(row.sessions),
+    eventCount: Number(row.events),
+    device: signals.device === "Not available" ? null : signals.device,
+    browser: signals.browser === "Not available" ? null : signals.browser,
+    source: signals.source || null,
+  };
+}
+
+export async function getLiveVisitors(context: AnalyticsContext, windowSeconds: number) {
+  const cutoff = new Date(Date.now() - windowSeconds * 1000);
+  const [countRows, rows] = await Promise.all([
+    queryPostgres<{ active_visitors: number }>(Prisma.sql`SELECT COUNT(DISTINCT visitor_id)::int AS active_visitors FROM tracking_events WHERE website_id = ${context.websiteId}::uuid AND occurred_at >= ${cutoff}`),
+    queryPostgres<LiveVisitorRow>(Prisma.sql`WITH scoped AS (SELECT * FROM tracking_events WHERE website_id = ${context.websiteId}::uuid AND occurred_at >= ${cutoff}), grouped AS (SELECT visitor_id, MAX(occurred_at) AS last_seen, COUNT(DISTINCT session_id)::int AS sessions, COUNT(*)::int AS events FROM scoped GROUP BY visitor_id), latest AS (SELECT DISTINCT ON (visitor_id) visitor_id, split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) AS current_path, event_type, properties->>'eventName' AS event_name, context->>'userAgent' AS user_agent FROM scoped ORDER BY visitor_id, occurred_at DESC), first_referrer AS (SELECT DISTINCT ON (visitor_id) visitor_id, referrer AS source_referrer FROM scoped WHERE referrer IS NOT NULL ORDER BY visitor_id, occurred_at ASC) SELECT grouped.visitor_id, grouped.last_seen, grouped.sessions, grouped.events, latest.current_path, latest.event_type, latest.event_name, latest.user_agent, first_referrer.source_referrer FROM grouped JOIN latest USING (visitor_id) LEFT JOIN first_referrer USING (visitor_id) ORDER BY grouped.last_seen DESC ${pagination(context)}`),
+  ]);
+  return { visitors: rows.map(toLiveVisitor), activeVisitors: Number(countRows[0]?.active_visitors ?? 0), lastUpdatedAt: new Date().toISOString(), activityWindowSeconds: windowSeconds, pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
+}
+
+type LiveTimelineRow = { event_id: string; event_type: string; event_name: string | null; occurred_at: Date; path: string | null; properties: unknown };
+
+export function toLiveVisitorActivity(row: LiveTimelineRow): LiveVisitorActivity | null {
+  const type = toLiveActivityType(row.event_type, row.event_name);
+  if (!type) return null;
+  const metadata = row.properties && typeof row.properties === "object" ? sanitizeLiveMetadata(row.properties as Record<string, unknown>) : {};
+  return liveVisitorActivitySchema.parse({ type, occurredAt: iso(row.occurred_at), path: normalizeLivePath(row.path), label: liveActivityLabel(type, metadata) });
+}
+
+export async function getLiveVisitorTimeline(context: AnalyticsContext, windowSeconds: number, anonymousLabel: string) {
+  const label = anonymousVisitorLabelSchema.parse(anonymousLabel);
+  const cutoff = new Date(Date.now() - windowSeconds * 1000);
+  const candidates = await queryPostgres<{ visitor_id: string }>(Prisma.sql`SELECT visitor_id FROM tracking_events WHERE website_id = ${context.websiteId}::uuid AND occurred_at >= ${cutoff} GROUP BY visitor_id ORDER BY MAX(occurred_at) DESC LIMIT 5000`);
+  const visitorId = candidates.find((row) => toAnonymousVisitorLabel(row.visitor_id) === label)?.visitor_id;
+  if (!visitorId) throw new Error("LIVE_VISITOR_NOT_FOUND");
+  const rows = await queryPostgres<LiveTimelineRow>(Prisma.sql`SELECT event_id, event_type, properties->>'eventName' AS event_name, occurred_at, split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1) AS path, properties FROM tracking_events WHERE website_id = ${context.websiteId}::uuid AND visitor_id = ${visitorId} AND occurred_at >= ${cutoff} ORDER BY occurred_at ASC LIMIT ${context.limit}`);
+  const timeline = rows.map(toLiveVisitorActivity).filter((event): event is LiveVisitorActivity => event !== null);
+  return { visitor: { anonymousLabel: label }, timeline, lastUpdatedAt: new Date().toISOString(), activityWindowSeconds: windowSeconds, pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
 }
 
 export async function getVisitors(context: AnalyticsContext) {
