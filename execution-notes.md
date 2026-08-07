@@ -1772,3 +1772,15 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added contract coverage for tracking-health classification and SDK version metadata.
 - Verified 22 API tests, API build, dashboard production build, and `git diff --check`.
 - No database migration was required; the feature uses existing website and tracking-event data.
+
+## Platform Usefulness — Phase 2
+
+**Status:** Complete as visitor explorer improvements
+
+- Added real pagination to the Visitors page with a Load more visitors action.
+- Preserved loaded visitor pages while preventing duplicate visitor rows.
+- Added device, source, and recent activity filters alongside existing search, status, and sort controls.
+- Added a Clear filters action and responsive filter layout.
+- Added clearer latest-activity labels to visitor list rows.
+- Preserved anonymous visitor identity and existing privacy-safe timeline rendering.
+- Verified 22 API tests, API build, dashboard production build, and `git diff --check`.
