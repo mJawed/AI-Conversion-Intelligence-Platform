@@ -20,6 +20,7 @@ export const eventSchema = z.object({
   title: z.string().trim().max(300).optional(),
   properties: z.record(z.string(), z.unknown()).default({}),
   context: z.object({
+    sdkVersion: z.string().trim().max(40).optional(),
     userAgent: z.string().max(1000).optional(),
     language: z.string().max(40).optional(),
     viewport: z.object({ width: z.number().int().min(0).max(10000), height: z.number().int().min(0).max(10000) }).optional(),

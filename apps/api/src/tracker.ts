@@ -1,3 +1,5 @@
+export const TRACKER_VERSION = "1.1.0";
+
 const trackerSource = String.raw`(function () {
   "use strict";
 
@@ -89,6 +91,7 @@ const trackerSource = String.raw`(function () {
       title: document.title.slice(0, 300),
       properties: safeProperties(properties),
       context: {
+        sdkVersion: "${TRACKER_VERSION}",
         userAgent: navigator.userAgent.slice(0, 1000),
         language: navigator.language ? navigator.language.slice(0, 40) : undefined,
         viewport: { width: window.innerWidth, height: window.innerHeight }

@@ -48,6 +48,15 @@ export function getTrackingVerificationStatus(website: { status: WebsiteStatus; 
   return { verified: true, status: "TRACKING_VERIFIED", message: "Tracking is connected and receiving events." } as const;
 }
 
+export type TrackingHealthStatus = "HEALTHY" | "NEEDS_ATTENTION" | "NO_DATA" | "PAUSED" | "ARCHIVED";
+
+export function getTrackingHealthStatus(website: { status: WebsiteStatus; lastEventAt: Date | null }, now = new Date()): TrackingHealthStatus {
+  if (website.status === WebsiteStatus.PAUSED) return "PAUSED";
+  if (website.status === WebsiteStatus.ARCHIVED) return "ARCHIVED";
+  if (!website.lastEventAt) return "NO_DATA";
+  return now.getTime() - website.lastEventAt.getTime() <= 30 * 60 * 1000 ? "HEALTHY" : "NEEDS_ATTENTION";
+}
+
 function createTrackingId() {
   return `trk_${randomBytes(12).toString("hex")}`;
 }
@@ -177,6 +186,57 @@ websiteRouter.get("/:websiteId/tracking-script", async (request: Request, respon
   } catch (error) {
     console.error("Tracking script configuration failed", error);
     response.status(500).json({ error: "TRACKING_CONFIG_FETCH_FAILED" });
+  }
+});
+
+websiteRouter.get("/:websiteId/tracking-health", async (request: Request, response: Response) => {
+  try {
+    const website = await findWebsite(request);
+    if (!website) {
+      response.status(404).json({ error: "WEBSITE_NOT_FOUND" });
+      return;
+    }
+
+    const now = new Date();
+    const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const [summaryRows, typeRows, latestRows] = await Promise.all([
+      prisma.$queryRaw<Array<{ events: number; visitors: number; sessions: number; first_event_at: Date | null; last_event_at: Date | null }>>(Prisma.sql`SELECT COUNT(*)::int AS events, COUNT(DISTINCT visitor_id)::int AS visitors, COUNT(DISTINCT session_id)::int AS sessions, MIN(occurred_at) AS first_event_at, MAX(occurred_at) AS last_event_at FROM tracking_events WHERE website_id = ${website.id}::uuid AND occurred_at >= ${since}`),
+      prisma.$queryRaw<Array<{ event_type: string; events: number }>>(Prisma.sql`SELECT event_type, COUNT(*)::int AS events FROM tracking_events WHERE website_id = ${website.id}::uuid AND occurred_at >= ${since} GROUP BY event_type ORDER BY events DESC`),
+      prisma.$queryRaw<Array<{ sdk_version: string | null }>>(Prisma.sql`SELECT context->>'sdkVersion' AS sdk_version FROM tracking_events WHERE website_id = ${website.id}::uuid ORDER BY occurred_at DESC LIMIT 1`),
+    ]);
+
+    const summary = summaryRows[0] ?? { events: 0, visitors: 0, sessions: 0, first_event_at: null, last_event_at: null };
+    const latestEventAt = summary.last_event_at ?? website.lastEventAt;
+    const status = getTrackingHealthStatus({ status: website.status, lastEventAt: latestEventAt }, now);
+    const warnings: string[] = [];
+    if (status === "NO_DATA") warnings.push("No tracking event has been received yet.");
+    if (status === "NEEDS_ATTENTION") warnings.push("No tracking event has been received in the last 30 minutes.");
+    if (summary.events > 0 && !typeRows.some((row) => row.event_type === "page_view")) warnings.push("No page_view events were received in the last 24 hours.");
+    if (summary.events > 0 && !typeRows.some((row) => row.event_type === "heartbeat" || row.event_type === "custom")) warnings.push("No live activity heartbeat events were received in the last 24 hours.");
+    if (latestRows[0]?.sdk_version === null || latestRows[0]?.sdk_version === undefined) warnings.push("The latest event came from an older SDK without version metadata.");
+    if (status === "PAUSED") warnings.push("Tracking is paused for this website.");
+    if (status === "ARCHIVED") warnings.push("Tracking is unavailable for an archived website.");
+
+    response.setHeader("Cache-Control", "no-store");
+    response.json({
+      health: {
+        status,
+        message: status === "HEALTHY" ? "Tracking is receiving events normally." : warnings[0] ?? "Tracking needs attention.",
+        firstEventAt: website.firstEventAt?.toISOString() ?? summary.first_event_at?.toISOString() ?? null,
+        lastEventAt: latestEventAt?.toISOString() ?? null,
+        lastEventAgeSeconds: latestEventAt ? Math.max(0, Math.round((now.getTime() - latestEventAt.getTime()) / 1000)) : null,
+        sdkVersion: latestRows[0]?.sdk_version ?? null,
+        eventVolume24h: Number(summary.events),
+        uniqueVisitors24h: Number(summary.visitors),
+        sessions24h: Number(summary.sessions),
+        eventTypes24h: typeRows.map((row) => ({ type: row.event_type, events: Number(row.events) })),
+        warnings,
+        checkedAt: now.toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error("Tracking health check failed", error);
+    response.status(500).json({ error: "TRACKING_HEALTH_FAILED" });
   }
 });
 

@@ -1758,3 +1758,17 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added the manual two-visitor QA checklist covering separate journeys, polling recovery, stale visitors, and privacy checks.
 - Verified 21 API tests, API build, dashboard production build, and `git diff --check`.
 - Confirmed Phase 6 identity tracking remains intentionally skipped.
+
+## Platform Usefulness — Phase 1
+
+**Status:** Complete as tracking-health visibility and validation
+
+- Added an authenticated tracking-health endpoint per website.
+- Added 24-hour event volume, unique visitor, session, event-type, first-event, and last-event metrics.
+- Added health states for healthy, stale, no data, paused, and archived websites.
+- Added actionable warnings for missing page views, missing live activity events, and legacy SDK metadata.
+- Added tracker SDK version `1.1.0` to newly collected event context.
+- Added Settings → Installation tracking-health card with status, metrics, SDK version, last-event age, warnings, and retry handling.
+- Added contract coverage for tracking-health classification and SDK version metadata.
+- Verified 22 API tests, API build, dashboard production build, and `git diff --check`.
+- No database migration was required; the feature uses existing website and tracking-event data.

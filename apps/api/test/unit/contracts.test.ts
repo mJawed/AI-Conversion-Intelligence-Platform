@@ -4,9 +4,9 @@ import { eventSchema, maskUrl, maskValue, publicEventSummary, toTrackingEventDat
 import { analyticsQuerySchema, liveAnalyticsQuerySchema, normalizeAnalyticsQuery, toLiveEvent, toLiveVisitor, toLiveVisitorActivity } from "../../src/analytics-service";
 import { decryptSecret, encryptSecret } from "../../src/security";
 import { safeWebhookUrl } from "../../src/alert-routes";
-import { getTrackingVerificationStatus, normalizeDomain } from "../../src/website-routes";
+import { getTrackingHealthStatus, getTrackingVerificationStatus, normalizeDomain } from "../../src/website-routes";
 import { WebsiteStatus } from "@prisma/client";
-import { trackerScript } from "../../src/tracker";
+import { TRACKER_VERSION, trackerScript } from "../../src/tracker";
 import { getPipelineMetrics, publishEvent, toClickHouseRow } from "../../src/event-pipeline";
 import { getInfrastructureConfig, getMaxTrackingEventsPerDay, getEventRetentionDays, getAnalyticsStorage, isFreeMvpMode } from "../../src/config";
 import { createCROFingerprint, hasCROSample, normalizeCROEvidence, normalizeCROPath, normalizeCRORecommendation } from "../../src/cro-recommendations";
@@ -205,6 +205,7 @@ test("tracker script includes consent and privacy controls", () => {
   assert.match(trackerScript, /optOut/);
   assert.match(trackerScript, /optIn/);
   assert.match(trackerScript, /trackingAllowed/);
+  assert.match(trackerScript, new RegExp(`sdkVersion: \\"${TRACKER_VERSION}\\"`));
   assert.doesNotMatch(trackerScript, /FormData/);
 });
 
@@ -213,6 +214,15 @@ test("returns clear tracking verification states", () => {
   assert.equal(getTrackingVerificationStatus({ status: WebsiteStatus.ACTIVE, firstEventAt: new Date() }).verified, true);
   assert.equal(getTrackingVerificationStatus({ status: WebsiteStatus.PAUSED, firstEventAt: new Date() }).status, "TRACKING_PAUSED");
   assert.equal(getTrackingVerificationStatus({ status: WebsiteStatus.ARCHIVED, firstEventAt: new Date() }).status, "TRACKING_ARCHIVED");
+});
+
+test("classifies tracking health from website activity", () => {
+  const now = new Date("2026-08-07T12:00:00.000Z");
+  assert.equal(getTrackingHealthStatus({ status: WebsiteStatus.ACTIVE, lastEventAt: new Date("2026-08-07T11:45:00.000Z") }, now), "HEALTHY");
+  assert.equal(getTrackingHealthStatus({ status: WebsiteStatus.ACTIVE, lastEventAt: new Date("2026-08-07T10:00:00.000Z") }, now), "NEEDS_ATTENTION");
+  assert.equal(getTrackingHealthStatus({ status: WebsiteStatus.ACTIVE, lastEventAt: null }, now), "NO_DATA");
+  assert.equal(getTrackingHealthStatus({ status: WebsiteStatus.PAUSED, lastEventAt: new Date() }, now), "PAUSED");
+  assert.equal(getTrackingHealthStatus({ status: WebsiteStatus.ARCHIVED, lastEventAt: new Date() }, now), "ARCHIVED");
 });
 
 test("maps tracking events to the ClickHouse schema without losing tenant identity", () => {
