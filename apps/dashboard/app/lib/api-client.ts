@@ -160,10 +160,11 @@ export function getAdminUsage(accessToken: string, query?: { organizationId?: st
   return authenticatedRequest<{ usage: AdminUsage }>(`/api/v1/admin/usage${search}`, accessToken);
 }
 
-export type FunnelInput = { name: string; description: string; goal: { type: "conversion" | "form_submit" | "purchase" | "custom"; value?: string }; steps: Array<{ name: string; path: string }> };
+export type FunnelInput = { name: string; description: string; goal: { type: "conversion" | "form_submit" | "purchase" | "custom"; value?: string }; steps: Array<{ name: string; path: string; type?: "page_view" | "click" | "form_submit" | "custom"; value?: string }> };
 export function createFunnel(accessToken: string, organizationId: string, websiteId: string, input: FunnelInput) { return authenticatedRequest<{ funnel: unknown }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/funnels`, accessToken, { method: "POST", body: JSON.stringify(input) }); }
 export function updateFunnel(accessToken: string, organizationId: string, websiteId: string, funnelId: string, input: FunnelInput) { return authenticatedRequest<{ funnel: unknown }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/funnels/${funnelId}`, accessToken, { method: "PATCH", body: JSON.stringify(input) }); }
 export function archiveFunnel(accessToken: string, organizationId: string, websiteId: string, funnelId: string) { return authenticatedRequest<{ funnel: unknown }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/funnels/${funnelId}`, accessToken, { method: "DELETE" }); }
+export function duplicateFunnel(accessToken: string, organizationId: string, websiteId: string, funnelId: string) { return authenticatedRequest<{ funnel: unknown }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/funnels/${funnelId}/duplicate`, accessToken, { method: "POST" }); }
 export function updateInsightStatus(accessToken: string, organizationId: string, websiteId: string, insightId: string, status: "OPEN" | "DISMISSED" | "RESOLVED") { return authenticatedRequest<{ insight: { id: string; status: string } }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/insights/${insightId}/status`, accessToken, { method: "PATCH", body: JSON.stringify({ status }) }); }
 
 export function getAdminBilling(accessToken: string) {
