@@ -1,4 +1,4 @@
-export const TRACKER_VERSION = "1.1.0";
+export const TRACKER_VERSION = "1.2.0";
 
 const trackerSource = String.raw`(function () {
   "use strict";
@@ -21,6 +21,7 @@ const trackerSource = String.raw`(function () {
   var lastPage = "";
   var scrollMilestones = {};
   var formStarts = typeof WeakSet === "function" ? new WeakSet() : null;
+  var fieldFocuses = typeof WeakSet === "function" ? new WeakSet() : null;
 
   function randomId(prefix) {
     if (window.crypto && typeof window.crypto.randomUUID === "function") return prefix + window.crypto.randomUUID();
@@ -153,6 +154,12 @@ const trackerSource = String.raw`(function () {
     };
   }
 
+  function fieldId(field) {
+    if (!field) return "unknown";
+    var id = field.id || field.getAttribute && field.getAttribute("data-field-id");
+    return id ? String(id).slice(0, 80) : (field.type ? String(field.type).slice(0, 40) : "unknown");
+  }
+
   function clearQueuedEvents() {
     queue.splice(0, queue.length);
     if (flushTimer) { window.clearTimeout(flushTimer); flushTimer = null; }
@@ -201,9 +208,15 @@ const trackerSource = String.raw`(function () {
 
   document.addEventListener("focusin", function (event) {
     var form = event.target && event.target.form;
-    if (!form || (formStarts && formStarts.has(form))) return;
-    if (formStarts) formStarts.add(form);
-    enqueue("form_start", formProperties(form));
+    if (!form) return;
+    if (!formStarts || !formStarts.has(form)) {
+      if (formStarts) formStarts.add(form);
+      enqueue("form_start", formProperties(form));
+    }
+    var field = event.target;
+    if (fieldFocuses && fieldFocuses.has(field)) return;
+    if (fieldFocuses) fieldFocuses.add(field);
+    enqueue("custom", { eventName: "form_field_focus", formId: form.id ? form.id.slice(0, 80) : "anonymous", fieldId: fieldId(field) });
   }, true);
 
   document.addEventListener("submit", function (event) {
@@ -213,7 +226,7 @@ const trackerSource = String.raw`(function () {
   document.addEventListener("invalid", function (event) {
     var field = event.target;
     var form = field && field.form;
-    if (form) enqueue("custom", { eventName: "form_error", formId: form.id ? form.id.slice(0, 80) : "anonymous", fieldType: field.type ? field.type.slice(0, 40) : "unknown" });
+    if (form) enqueue("custom", { eventName: "form_error", formId: form.id ? form.id.slice(0, 80) : "anonymous", fieldId: fieldId(field), fieldType: field.type ? field.type.slice(0, 40) : "unknown" });
   }, true);
 
   window.addEventListener("scroll", function () {

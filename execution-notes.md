@@ -1784,3 +1784,32 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Added clearer latest-activity labels to visitor list rows.
 - Preserved anonymous visitor identity and existing privacy-safe timeline rendering.
 - Verified 22 API tests, API build, dashboard production build, and `git diff --check`.
+
+## Platform Usefulness — Phase 3
+
+**Status:** Complete as typed funnel building and segment-aware drop-off analysis
+
+- Added typed funnel steps for page views, clicks, form submissions, and custom events.
+- Preserved existing funnel definitions by defaulting legacy steps to `page_view`.
+- Added additive Prisma migration for funnel event type and event value metadata.
+- Added duplicate funnel API support with audit logging.
+- Added funnel editor controls for step type and event value.
+- Added mobile, desktop, tablet, and all-visitor segment filters to funnel analytics.
+- Updated funnel queries to match the configured event type and preserve ordered journey analysis.
+- Added clearer live step labels and duplicate-funnel controls.
+- Added contract coverage for typed funnel-step validation.
+- Verified 23 API tests, API build, dashboard production build, and `git diff --check`.
+
+## Platform Usefulness — Phase 4
+
+**Status:** Complete as field-aware form analytics
+
+- Extended the tracker with privacy-safe form field focus and field error events.
+- Added form completion-time measurement from start to submit within the same session.
+- Added field-level completion, drop-off, and validation-error aggregation without storing field values.
+- Added live form recommendations based on validation volume, field abandonment, and overall completion rate.
+- Added average completion time to live form summaries.
+- Preserved the existing form analytics UI and populated its field table with real event evidence.
+- Bumped the tracker SDK version to `1.2.0`.
+- Added tracker contract coverage for field-focus instrumentation.
+- Verified 23 API tests, API build, dashboard production build, and `git diff --check`.

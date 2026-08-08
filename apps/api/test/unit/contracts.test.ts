@@ -12,6 +12,7 @@ import { getInfrastructureConfig, getMaxTrackingEventsPerDay, getEventRetentionD
 import { createCROFingerprint, hasCROSample, normalizeCROEvidence, normalizeCROPath, normalizeCRORecommendation } from "../../src/cro-recommendations";
 import { buildCRORecommendations } from "../../src/cro-recommendation-rules";
 import { liveActivityTypeSchema, liveActivityLabel, liveVisitorActivitySchema, liveVisitorSummarySchema, normalizeLivePath, sanitizeLiveMetadata, toAnonymousVisitorLabel, toLiveActivityType } from "../../src/live-visitor-contract";
+import { funnelStepSchema } from "../../src/funnel-routes";
 
 test("normalizes website domains and rejects paths", () => {
   assert.equal(normalizeDomain("https://WWW.Example.com/"), "www.example.com");
@@ -34,6 +35,12 @@ test("normalizes analytics ranges and pagination", () => {
   assert.equal(context.limit, 10);
   assert.equal(context.offset, 5);
   assert.ok(new Date(context.from) < new Date(context.to));
+});
+
+test("validates typed funnel steps while preserving page-view defaults", () => {
+  assert.equal(funnelStepSchema.parse({ name: "Pricing", path: "/pricing" }).type, "page_view");
+  assert.equal(funnelStepSchema.parse({ name: "CTA", path: "/pricing", type: "click", value: "start-trial" }).value, "start-trial");
+  assert.throws(() => funnelStepSchema.parse({ name: "CTA", path: "/pricing", type: "click" }));
 });
 
 test("normalizes unified CRO recommendation contracts", () => {
@@ -188,6 +195,7 @@ test("tracker script includes Phase 2 event delivery hooks", () => {
   assert.match(trackerScript, /form_start/);
   assert.match(trackerScript, /form_submit/);
   assert.match(trackerScript, /form_error/);
+  assert.match(trackerScript, /form_field_focus/);
   assert.match(trackerScript, /formId/);
   assert.match(trackerScript, /scroll/);
   assert.match(trackerScript, /window\.aiGrowth/);
