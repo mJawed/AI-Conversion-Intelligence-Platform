@@ -52,7 +52,7 @@ analyticsRouter.get("/live", async (request, response) => {
   response.setHeader("Cache-Control", "no-store");
   try {
     const now = new Date();
-    const context = normalizeAnalyticsQuery({ ...parsed.data, from: new Date(now.getTime() - parsed.data.windowSeconds * 1000).toISOString(), to: now.toISOString(), offset: 0 });
+    const context = normalizeAnalyticsQuery({ ...parsed.data, segment: "all", from: new Date(now.getTime() - parsed.data.windowSeconds * 1000).toISOString(), to: now.toISOString(), offset: 0 });
     await authorizeAnalyticsContext(context, request.authUserId!);
     response.json(await getLiveTracking(context, parsed.data.windowSeconds));
   } catch (error) {
@@ -72,7 +72,7 @@ analyticsRouter.get("/live/visitors", async (request, response) => {
   response.setHeader("Cache-Control", "no-store");
   try {
     const now = new Date();
-    const context = normalizeAnalyticsQuery({ ...parsed.data, from: new Date(now.getTime() - parsed.data.windowSeconds * 1000).toISOString(), to: now.toISOString(), offset: 0 });
+    const context = normalizeAnalyticsQuery({ ...parsed.data, segment: "all", from: new Date(now.getTime() - parsed.data.windowSeconds * 1000).toISOString(), to: now.toISOString(), offset: 0 });
     await authorizeAnalyticsContext(context, request.authUserId!);
     response.json(await getLiveVisitors(context, parsed.data.windowSeconds));
   } catch (error) {
@@ -92,7 +92,7 @@ analyticsRouter.get("/live/visitors/:visitorLabel/timeline", async (request, res
   response.setHeader("Cache-Control", "no-store");
   try {
     const now = new Date();
-    const context = normalizeAnalyticsQuery({ ...parsed.data, from: new Date(now.getTime() - parsed.data.windowSeconds * 1000).toISOString(), to: now.toISOString(), offset: 0 });
+    const context = normalizeAnalyticsQuery({ ...parsed.data, segment: "all", from: new Date(now.getTime() - parsed.data.windowSeconds * 1000).toISOString(), to: now.toISOString(), offset: 0 });
     await authorizeAnalyticsContext(context, request.authUserId!);
     response.json(await getLiveVisitorTimeline(context, parsed.data.windowSeconds, request.params.visitorLabel));
   } catch (error) {

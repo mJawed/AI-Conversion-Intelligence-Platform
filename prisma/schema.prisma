@@ -195,6 +195,8 @@ model FunnelStep {
   position  Int
   name      String
   path      String
+  eventType String   @default("page_view") @map("event_type")
+  eventValue String? @map("event_value")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   funnel    Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)

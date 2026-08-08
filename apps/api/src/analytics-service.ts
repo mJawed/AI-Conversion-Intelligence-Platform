@@ -12,6 +12,7 @@ export const analyticsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(25),
   offset: z.coerce.number().int().min(0).max(10000).default(0),
   sort: z.string().trim().max(40).optional(),
+  segment: z.enum(["all", "mobile", "desktop", "tablet"]).default("all"),
 });
 export const liveAnalyticsQuerySchema = analyticsQuerySchema.pick({ organizationId: true, websiteId: true }).extend({
   limit: z.coerce.number().int().min(1).max(50).default(25),
@@ -19,7 +20,7 @@ export const liveAnalyticsQuerySchema = analyticsQuerySchema.pick({ organization
 });
 
 export type AnalyticsQuery = z.infer<typeof analyticsQuerySchema>;
-export type AnalyticsContext = { organizationId: string; websiteId: string; from: string; to: string; limit: number; offset: number; sort?: string };
+export type AnalyticsContext = { organizationId: string; websiteId: string; from: string; to: string; limit: number; offset: number; sort?: string; segment: "all" | "mobile" | "desktop" | "tablet" };
 
 export class AnalyticsUnavailableError extends Error {
   constructor(message = "Analytics service is unavailable") {
@@ -39,7 +40,7 @@ export function normalizeAnalyticsQuery(query: AnalyticsQuery): AnalyticsContext
   const from = query.from ?? defaults.from;
   const to = query.to ?? defaults.to;
   if (new Date(from) >= new Date(to)) throw new Error("INVALID_DATE_RANGE");
-  return { organizationId: query.organizationId, websiteId: query.websiteId, from, to, limit: query.limit, offset: query.offset, sort: query.sort };
+  return { organizationId: query.organizationId, websiteId: query.websiteId, from, to, limit: query.limit, offset: query.offset, sort: query.sort, segment: query.segment };
 }
 
 export async function authorizeAnalyticsContext(context: AnalyticsContext, userId: string) {
@@ -197,21 +198,51 @@ export async function getSessions(context: AnalyticsContext) {
 }
 
 export async function getForms(context: AnalyticsContext) {
-  const rows = await queryPostgres<{ form_id: string; path: string; started: number; completed: number; errors: number; visitors: number }>(Prisma.sql`SELECT properties->>'formId' AS form_id, MIN(split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1)) AS path, COUNT(*) FILTER (WHERE event_type = 'form_start')::int AS started, COUNT(*) FILTER (WHERE event_type = 'form_submit')::int AS completed, COUNT(*) FILTER (WHERE event_type = 'custom' AND properties->>'eventName' = 'form_error')::int AS errors, COUNT(DISTINCT visitor_id) FILTER (WHERE event_type = 'form_start')::int AS visitors FROM tracking_events WHERE ${eventWhere(context)} AND event_type IN ('form_start', 'form_submit', 'custom') AND COALESCE(properties->>'formId', '') <> '' GROUP BY properties->>'formId' ORDER BY started DESC ${pagination(context)}`);
-  return { forms: rows.map((row) => ({ ...row, completionRate: Number(row.started) ? Number(((Number(row.completed) / Number(row.started)) * 100).toFixed(2)) : 0, abandonmentRate: Number(row.started) ? Number((((Number(row.started) - Number(row.completed)) / Number(row.started)) * 100).toFixed(2)) : 0 })), pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
+  const where = eventWhere(context);
+  const [rows, fieldRows, durationRows] = await Promise.all([
+    queryPostgres<{ form_id: string; path: string; started: number; completed: number; errors: number; visitors: number }>(Prisma.sql`SELECT properties->>'formId' AS form_id, MIN(split_part(split_part(regexp_replace(url, '^https?://[^/]+', ''), '?', 1), '#', 1)) AS path, COUNT(*) FILTER (WHERE event_type = 'form_start')::int AS started, COUNT(*) FILTER (WHERE event_type = 'form_submit')::int AS completed, COUNT(*) FILTER (WHERE event_type = 'custom' AND properties->>'eventName' = 'form_error')::int AS errors, COUNT(DISTINCT visitor_id) FILTER (WHERE event_type = 'form_start')::int AS visitors FROM tracking_events WHERE ${where} AND event_type IN ('form_start', 'form_submit', 'custom') AND COALESCE(properties->>'formId', '') <> '' GROUP BY properties->>'formId' ORDER BY started DESC ${pagination(context)}`),
+    queryPostgres<{ form_id: string; field_id: string; focused: number; errors: number }>(Prisma.sql`SELECT properties->>'formId' AS form_id, COALESCE(NULLIF(properties->>'fieldId', ''), NULLIF(properties->>'fieldType', ''), 'unknown') AS field_id, COUNT(DISTINCT visitor_id) FILTER (WHERE properties->>'eventName' = 'form_field_focus')::int AS focused, COUNT(*) FILTER (WHERE properties->>'eventName' = 'form_error')::int AS errors FROM tracking_events WHERE ${where} AND event_type = 'custom' AND properties->>'eventName' IN ('form_field_focus', 'form_error') AND COALESCE(properties->>'formId', '') <> '' GROUP BY properties->>'formId', field_id`),
+    queryPostgres<{ form_id: string; avg_seconds: number | null }>(Prisma.sql`WITH starts AS (SELECT visitor_id, session_id, properties->>'formId' AS form_id, occurred_at FROM tracking_events WHERE ${where} AND event_type = 'form_start' AND COALESCE(properties->>'formId', '') <> ''), submits AS (SELECT visitor_id, session_id, properties->>'formId' AS form_id, occurred_at FROM tracking_events WHERE ${where} AND event_type = 'form_submit' AND COALESCE(properties->>'formId', '') <> '') SELECT starts.form_id, AVG(EXTRACT(EPOCH FROM (submits.occurred_at - starts.occurred_at)))::float AS avg_seconds FROM starts JOIN submits ON submits.visitor_id = starts.visitor_id AND submits.session_id = starts.session_id AND submits.form_id = starts.form_id AND submits.occurred_at >= starts.occurred_at GROUP BY starts.form_id`),
+  ]);
+  const fieldsByForm = new Map<string, typeof fieldRows>();
+  fieldRows.forEach((row) => fieldsByForm.set(row.form_id, [...(fieldsByForm.get(row.form_id) ?? []), row]));
+  const durations = new Map(durationRows.map((row) => [row.form_id, Number(row.avg_seconds ?? 0)]));
+  const formatDuration = (seconds: number) => seconds > 0 ? `${Math.floor(seconds / 60).toString().padStart(2, "0")}:${Math.round(seconds % 60).toString().padStart(2, "0")}` : "Not available";
+  const forms = rows.map((row) => {
+    const started = Number(row.started); const completed = Number(row.completed); const fields = (fieldsByForm.get(row.form_id) ?? []).map((field) => { const focused = Number(field.focused); const completion = started ? Math.min(100, (focused / started) * 100) : 0; return { name: field.field_id, completion: Number(completion.toFixed(1)), dropOff: Number((100 - completion).toFixed(1)), errors: Number(field.errors), issue: Number(field.errors) > 0 ? "Validation errors recorded" : completion < 50 ? "Largest field drop-off" : "Healthy" }; }); const completionRate = started ? Number(((completed / started) * 100).toFixed(2)) : 0; const abandonmentRate = started ? Number((((started - completed) / started) * 100).toFixed(2)) : 0; return { ...row, completionRate, abandonmentRate, avgCompletionSeconds: durations.get(row.form_id) ?? 0, avgCompletionTime: formatDuration(durations.get(row.form_id) ?? 0), fields }; });
+  return { forms, pagination: { limit: context.limit, offset: context.offset, hasMore: rows.length === context.limit } };
+}
+
+function funnelSegmentWhere(context: AnalyticsContext, alias: string) {
+  if (context.segment === "all") return Prisma.empty;
+  const event = Prisma.raw(alias);
+  const agent = Prisma.sql`COALESCE(${event}.context->>'userAgent', '')`;
+  if (context.segment === "mobile") return Prisma.sql`AND ${agent} ~* '(mobile|iphone|ipod|android)' AND ${agent} !~* 'tablet|ipad'`;
+  if (context.segment === "tablet") return Prisma.sql`AND ${agent} ~* '(tablet|ipad|android)'`;
+  return Prisma.sql`AND ${agent} <> '' AND ${agent} !~* '(mobile|iphone|ipod|android|tablet|ipad)'`;
+}
+
+function funnelStepMatch(step: { eventType: string; eventValue: string | null; path: string }, alias: string) {
+  const event = Prisma.raw(alias);
+  const normalizedPath = Prisma.sql`split_part(split_part(regexp_replace(${event}.url, '^https?://[^/]+', ''), '?', 1), '#', 1)`;
+  const scope = step.path && step.path !== "/" ? Prisma.sql`AND ${normalizedPath} = ${step.path}` : Prisma.empty;
+  if (step.eventType === "click") return Prisma.sql`${event}.event_type = 'click' AND (COALESCE(${event}.properties->>'id', '') = ${step.eventValue ?? ""} OR COALESCE(${event}.properties->>'href', '') = ${step.eventValue ?? ""} OR COALESCE(${event}.properties->>'role', '') = ${step.eventValue ?? ""}) ${scope}`;
+  if (step.eventType === "form_submit") return Prisma.sql`${event}.event_type = 'form_submit' AND ${event}.properties->>'formId' = ${step.eventValue ?? ""} ${scope}`;
+  if (step.eventType === "custom") return Prisma.sql`${event}.event_type = 'custom' AND ${event}.properties->>'eventName' = ${step.eventValue ?? ""} ${scope}`;
+  return Prisma.sql`${event}.event_type = 'page_view' AND ${normalizedPath} = ${step.path}`;
 }
 
 export async function getFunnels(context: AnalyticsContext) {
   const definitions = await prisma.funnel.findMany({ where: { organizationId: context.organizationId, websiteId: context.websiteId, status: "ACTIVE" }, orderBy: { updatedAt: "desc" }, take: context.limit, skip: context.offset, include: { steps: { orderBy: { position: "asc" } } } });
   const funnels = await Promise.all(definitions.map(async (definition) => {
     const stepRows = await Promise.all(definition.steps.map((step, index) => {
-      const priorSteps = definition.steps.slice(0, index).map((prior) => Prisma.sql`EXISTS (SELECT 1 FROM tracking_events prior_event WHERE prior_event.website_id = ${context.websiteId}::uuid AND prior_event.visitor_id = current_event.visitor_id AND prior_event.occurred_at >= ${new Date(context.from)} AND prior_event.occurred_at < ${new Date(context.to)} AND prior_event.occurred_at <= current_event.occurred_at AND split_part(split_part(regexp_replace(prior_event.url, '^https?://[^/]+', ''), '?', 1), '#', 1) = ${prior.path})`);
+      const priorSteps = definition.steps.slice(0, index).map((prior) => Prisma.sql`EXISTS (SELECT 1 FROM tracking_events prior_event WHERE prior_event.website_id = ${context.websiteId}::uuid AND prior_event.visitor_id = current_event.visitor_id AND prior_event.occurred_at >= ${new Date(context.from)} AND prior_event.occurred_at < ${new Date(context.to)} AND prior_event.occurred_at <= current_event.occurred_at ${funnelSegmentWhere(context, "prior_event")} AND ${funnelStepMatch(prior, "prior_event")})`);
       const orderedRequirement = priorSteps.length ? Prisma.sql`AND ${Prisma.join(priorSteps, " AND ")}` : Prisma.empty;
-      return queryPostgres<{ visitors: number }>(Prisma.sql`SELECT COUNT(DISTINCT current_event.visitor_id)::int AS visitors FROM tracking_events current_event WHERE current_event.website_id = ${context.websiteId}::uuid AND current_event.occurred_at >= ${new Date(context.from)} AND current_event.occurred_at < ${new Date(context.to)} AND split_part(split_part(regexp_replace(current_event.url, '^https?://[^/]+', ''), '?', 1), '#', 1) = ${step.path} ${orderedRequirement}`);
+      return queryPostgres<{ visitors: number }>(Prisma.sql`SELECT COUNT(DISTINCT current_event.visitor_id)::int AS visitors FROM tracking_events current_event WHERE current_event.website_id = ${context.websiteId}::uuid AND current_event.occurred_at >= ${new Date(context.from)} AND current_event.occurred_at < ${new Date(context.to)} ${funnelSegmentWhere(context, "current_event")} AND ${funnelStepMatch(step, "current_event")} ${orderedRequirement}`);
     }));
     const goalEventType = definition.goalType === "form_submit" ? "form_submit" : definition.goalType === "custom" ? "custom" : "conversion";
     const goalFilter = definition.goalType === "custom" ? Prisma.sql`AND properties->>'eventName' = ${definition.goalValue ?? ""}` : Prisma.empty;
-    const conversionRows = await queryPostgres<{ conversions: number }>(Prisma.sql`SELECT COUNT(DISTINCT current_event.visitor_id)::int AS conversions FROM tracking_events current_event WHERE current_event.website_id = ${context.websiteId}::uuid AND current_event.occurred_at >= ${new Date(context.from)} AND current_event.occurred_at < ${new Date(context.to)} AND current_event.event_type = ${goalEventType} ${goalFilter} ${definition.steps[0] ? Prisma.sql`AND EXISTS (SELECT 1 FROM tracking_events first_step WHERE first_step.website_id = ${context.websiteId}::uuid AND first_step.visitor_id = current_event.visitor_id AND first_step.occurred_at >= ${new Date(context.from)} AND first_step.occurred_at < ${new Date(context.to)} AND first_step.occurred_at <= current_event.occurred_at AND split_part(split_part(regexp_replace(first_step.url, '^https?://[^/]+', ''), '?', 1), '#', 1) = ${definition.steps[0].path})` : Prisma.empty}`);
+    const conversionRows = await queryPostgres<{ conversions: number }>(Prisma.sql`SELECT COUNT(DISTINCT current_event.visitor_id)::int AS conversions FROM tracking_events current_event WHERE current_event.website_id = ${context.websiteId}::uuid AND current_event.occurred_at >= ${new Date(context.from)} AND current_event.occurred_at < ${new Date(context.to)} ${funnelSegmentWhere(context, "current_event")} AND current_event.event_type = ${goalEventType} ${goalFilter} ${definition.steps[0] ? Prisma.sql`AND EXISTS (SELECT 1 FROM tracking_events first_step WHERE first_step.website_id = ${context.websiteId}::uuid AND first_step.visitor_id = current_event.visitor_id AND first_step.occurred_at >= ${new Date(context.from)} AND first_step.occurred_at < ${new Date(context.to)} AND first_step.occurred_at <= current_event.occurred_at ${funnelSegmentWhere(context, "first_step")} AND ${funnelStepMatch(definition.steps[0], "first_step")})` : Prisma.empty}`);
     const visitors = stepRows.map((row) => Number(row[0]?.visitors ?? 0));
     const totalVisitors = visitors[0] ?? 0;
     const conversions = Number(conversionRows[0]?.conversions ?? 0);
