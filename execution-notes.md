@@ -1813,3 +1813,42 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Bumped the tracker SDK version to `1.2.0`.
 - Added tracker contract coverage for field-focus instrumentation.
 - Verified 23 API tests, API build, dashboard production build, and `git diff --check`.
+
+## Platform Usefulness — Phase 5
+
+**Status:** Complete as an evidence-backed CRO insight workflow
+
+- Preserved sample-size safeguards before generating CRO recommendations.
+- Added saved insight status alongside open, dismissed, and resolved states.
+- Added privacy-safe “Assign to me” and unassign workflow with organization membership validation.
+- Added audit logging for insight assignment changes.
+- Exposed assignment state and saved status in the live insights response.
+- Added dashboard controls for saving, resolving, dismissing, and assigning recommendations.
+- Preserved the required Problem, Reason, Confidence, Business impact, Recommendation, Priority, and Expected conversion improvement fields.
+- Added an additive Prisma migration for insight workflow state.
+- Verified 23 API tests, API build, dashboard production build, and `git diff --check`.
+
+## Platform Usefulness — Phase 6
+
+**Status:** Complete as an experiment and action tracking workspace
+
+- Added experiments linked to a website, optional CRO insight, and organization owner.
+- Added hypothesis, target page, variant, primary metric, baseline value, result value, notes, and lifecycle status fields.
+- Added planned, running, completed, and archived experiment states with start/end timestamps.
+- Added authenticated list, create, update, and archive API routes with organization membership checks and audit logging.
+- Added dashboard experiment workspace with linked-insight selection, outcome tracking, status actions, and edit form.
+- Added a Create experiment action directly from each AI insight.
+- Added an additive Prisma migration for the experiments table and status enum.
+- Verified API unit tests, API build, dashboard typecheck, dashboard production compilation, and `git diff --check`.
+
+## AI Recommendation Workflow — Phase 1
+
+**Status:** Complete as a privacy-safe evidence preparation layer
+
+- Added structured evidence packets for CRO recommendations before any AI explanation step.
+- Preserved sample-size safeguards and exposed sample size, source, page, confidence, priority, evidence, and limitations.
+- Added a `readyForAI` gate so low-confidence or weakly evidenced findings are not treated as definitive recommendations.
+- Returned evidence packets from the authenticated insights response for the future AI recommendation service.
+- Kept packets bounded and free of visitor identifiers or sensitive values.
+- Added unit coverage for evidence packet generation and readiness behavior.
+- Verified 24 API unit tests, API build, dashboard production build, and `git diff --check`.

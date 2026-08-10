@@ -11,6 +11,7 @@ import { getPipelineMetrics, publishEvent, toClickHouseRow } from "../../src/eve
 import { getInfrastructureConfig, getMaxTrackingEventsPerDay, getEventRetentionDays, getAnalyticsStorage, isFreeMvpMode } from "../../src/config";
 import { createCROFingerprint, hasCROSample, normalizeCROEvidence, normalizeCROPath, normalizeCRORecommendation } from "../../src/cro-recommendations";
 import { buildCRORecommendations } from "../../src/cro-recommendation-rules";
+import { buildAIRecommendationEvidence } from "../../src/ai-recommendation-evidence";
 import { liveActivityTypeSchema, liveActivityLabel, liveVisitorActivitySchema, liveVisitorSummarySchema, normalizeLivePath, sanitizeLiveMetadata, toAnonymousVisitorLabel, toLiveActivityType } from "../../src/live-visitor-contract";
 import { funnelStepSchema } from "../../src/funnel-routes";
 
@@ -92,6 +93,22 @@ test("generates unified CRO recommendations only when samples are sufficient", (
   assert.ok(recommendations.some((item) => item.source === "behaviour"));
   assert.ok(recommendations.some((item) => item.source === "page"));
   assert.equal(buildCRORecommendations({ overview: { visitors: 1, conversions: 0, conversionRate: 0 }, forms: [{ form_id: "signup", started: 9, completed: 0, errors: 9, completionRate: 0 }], funnels: [{ id: "funnel-1", name: "Signup", totalVisitors: "9", conversions: "0", steps: [{ name: "Landing", path: "/", visitors: "9", dropOff: "0%" }, { name: "Signup", path: "/signup", visitors: "1", dropOff: "88%" }] }], behaviour: { issues: [{ type: "Rage click", title: "Repeated clicks", page: "/", detail: "3 clicks across 2 visitors were clustered within short intervals.", impact: "+3–7%", priority: "High" }], scrollPages: [] }, pages: [{ path: "/", visitors: 9, page_views: 19, conversions: 0 }] }).length, 0);
+});
+
+test("prepares bounded evidence packets for future AI recommendations", () => {
+  const recommendations = buildCRORecommendations({
+    overview: { visitors: 40, conversions: 0, conversionRate: 0 },
+    forms: [{ form_id: "signup", path: "/signup", started: 20, completed: 8, errors: 6, completionRate: 40 }],
+    funnels: [],
+    behaviour: { issues: [], scrollPages: [] },
+    pages: [],
+  });
+  const packets = buildAIRecommendationEvidence(recommendations);
+  assert.equal(packets.length, 1);
+  assert.equal(packets[0]?.sampleSize, 20);
+  assert.equal(packets[0]?.readyForAI, true);
+  assert.equal("visitorId" in packets[0]!, false);
+  assert.ok(packets[0]?.evidence.length <= 8);
 });
 
 test("deduplicates unified CRO recommendation fingerprints", () => {
