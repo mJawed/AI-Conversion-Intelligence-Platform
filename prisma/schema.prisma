@@ -66,8 +66,16 @@ enum FunnelStatus {
 
 enum InsightStatus {
   OPEN
+  SAVED
   DISMISSED
   RESOLVED
+}
+
+enum ExperimentStatus {
+  PLANNED
+  RUNNING
+  COMPLETED
+  ARCHIVED
 }
 
 enum AlertEndpointStatus {
@@ -103,23 +111,24 @@ model User {
 }
 
 model Organization {
-  id              String               @id @default(uuid()) @db.Uuid
-  ownerId         String               @map("owner_id") @db.Uuid
-  name            String
-  slug            String               @unique
-  plan            String               @default("FREE")
-  status          OrganizationStatus   @default(ACTIVE)
-  createdAt       DateTime             @default(now()) @map("created_at")
-  updatedAt       DateTime             @updatedAt @map("updated_at")
-  owner           User                 @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  members         OrganizationMember[]
-  websites        Website[]
-  apiKeys         ApiKey[]
-  auditLogs       AuditLog[]
-  privacyRequests PrivacyRequest[]
-  subscriptions   Subscription[]
-  funnels         Funnel[]
-  insights        Insight[]
+  id               String               @id @default(uuid()) @db.Uuid
+  ownerId          String               @map("owner_id") @db.Uuid
+  name             String
+  slug             String               @unique
+  plan             String               @default("FREE")
+  status           OrganizationStatus   @default(ACTIVE)
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+  owner            User                 @relation("OrganizationOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members          OrganizationMember[]
+  websites         Website[]
+  apiKeys          ApiKey[]
+  auditLogs        AuditLog[]
+  privacyRequests  PrivacyRequest[]
+  subscriptions    Subscription[]
+  funnels          Funnel[]
+  insights         Insight[]
+  experiments      Experiment[]
   alertPreferences AlertPreference[]
   webhookEndpoints WebhookEndpoint[]
 
@@ -161,6 +170,7 @@ model Website {
   trackingEvents     TrackingEvent[]
   funnels            Funnel[]
   insights           Insight[]
+  experiments        Experiment[]
   consentRecords     PrivacyConsent[]
   alertPreferences   AlertPreference[]
 
@@ -190,16 +200,16 @@ model Funnel {
 }
 
 model FunnelStep {
-  id        String   @id @default(uuid()) @db.Uuid
-  funnelId  String   @map("funnel_id") @db.Uuid
-  position  Int
-  name      String
-  path      String
-  eventType String   @default("page_view") @map("event_type")
-  eventValue String? @map("event_value")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  funnel    Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid()) @db.Uuid
+  funnelId   String   @map("funnel_id") @db.Uuid
+  position   Int
+  name       String
+  path       String
+  eventType  String   @default("page_view") @map("event_type")
+  eventValue String?  @map("event_value")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  funnel     Funnel   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
 
   @@unique([funnelId, position])
   @@index([funnelId])
@@ -207,33 +217,63 @@ model FunnelStep {
 }
 
 model Insight {
-  id                  String        @id @default(uuid()) @db.Uuid
-  organizationId      String        @map("organization_id") @db.Uuid
-  websiteId           String        @map("website_id") @db.Uuid
+  id                  String          @id @default(uuid()) @db.Uuid
+  organizationId      String          @map("organization_id") @db.Uuid
+  websiteId           String          @map("website_id") @db.Uuid
   fingerprint         String
   category            String
   severity            String
-  status              InsightStatus @default(OPEN)
+  status              InsightStatus   @default(OPEN)
+  assignedToId        String?         @map("assigned_to_id") @db.Uuid
   title               String
   page                String
   problem             String
   reason              String
-  evidence            Json          @default("[]")
+  evidence            Json            @default("[]")
   confidence          String
-  businessImpact      String        @map("business_impact")
+  businessImpact      String          @map("business_impact")
   recommendation      String
-  expectedImprovement String        @map("expected_improvement")
-  createdAt           DateTime      @default(now()) @map("created_at")
-  updatedAt           DateTime      @updatedAt @map("updated_at")
-  resolvedAt          DateTime?     @map("resolved_at")
-  organization        Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  website             Website       @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  expectedImprovement String          @map("expected_improvement")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+  resolvedAt          DateTime?       @map("resolved_at")
+  organization        Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  website             Website         @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   alertDeliveries     AlertDelivery[]
+  experiments         Experiment[]
 
   @@unique([websiteId, fingerprint])
   @@index([organizationId, status, updatedAt])
   @@index([websiteId, category, severity])
   @@map("insights")
+}
+
+model Experiment {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  websiteId      String           @map("website_id") @db.Uuid
+  insightId      String?          @map("insight_id") @db.Uuid
+  ownerId        String?          @map("owner_id") @db.Uuid
+  name           String
+  hypothesis     String
+  targetPage     String           @map("target_page")
+  variant        String
+  primaryMetric  String           @map("primary_metric")
+  status         ExperimentStatus @default(PLANNED)
+  baselineValue  String?          @map("baseline_value")
+  resultValue    String?          @map("result_value")
+  notes          String?
+  startedAt      DateTime?        @map("started_at")
+  endedAt        DateTime?        @map("ended_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  website        Website          @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  insight        Insight?         @relation(fields: [insightId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, websiteId, status])
+  @@index([websiteId, updatedAt])
+  @@map("experiments")
 }
 
 model AlertPreference {
@@ -253,17 +293,17 @@ model AlertPreference {
 }
 
 model WebhookEndpoint {
-  id                  String              @id @default(uuid()) @db.Uuid
-  organizationId      String              @map("organization_id") @db.Uuid
-  name                String
-  encryptedUrl        String              @map("encrypted_url")
-  status              AlertEndpointStatus @default(ACTIVE)
-  lastDeliveryAt      DateTime?           @map("last_delivery_at")
-  lastDeliveryStatus  AlertDeliveryStatus? @map("last_delivery_status")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
-  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  deliveries          AlertDelivery[]
+  id                 String               @id @default(uuid()) @db.Uuid
+  organizationId     String               @map("organization_id") @db.Uuid
+  name               String
+  encryptedUrl       String               @map("encrypted_url")
+  status             AlertEndpointStatus  @default(ACTIVE)
+  lastDeliveryAt     DateTime?            @map("last_delivery_at")
+  lastDeliveryStatus AlertDeliveryStatus? @map("last_delivery_status")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+  organization       Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries         AlertDelivery[]
 
   @@unique([organizationId, name])
   @@index([organizationId, status])

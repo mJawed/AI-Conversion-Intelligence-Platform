@@ -10,6 +10,7 @@ import { organizationRouter } from "./organization-routes";
 import { websiteRouter } from "./website-routes";
 import { funnelRouter } from "./funnel-routes";
 import { insightRouter } from "./insight-routes";
+import { experimentRouter } from "./experiment-routes";
 import { collectorRouter } from "./collector-routes";
 import { getPipelineMetrics, startEventConsumer, stopEventPipeline } from "./event-pipeline";
 import { analyticsRouter } from "./analytics-routes";
@@ -49,6 +50,7 @@ app.use("/api/v1/organizations/:organizationId/api-keys", apiKeyRouter);
 app.use("/api/v1/organizations/:organizationId/websites", websiteRouter);
 app.use("/api/v1/organizations/:organizationId/websites/:websiteId/funnels", funnelRouter);
 app.use("/api/v1/organizations/:organizationId/websites/:websiteId/insights", insightRouter);
+app.use("/api/v1/organizations/:organizationId/websites/:websiteId/experiments", experimentRouter);
 app.use("/api/v1/organizations/:organizationId/alerts", alertRouter);
 
 app.get("/health", (_request, response) => {
