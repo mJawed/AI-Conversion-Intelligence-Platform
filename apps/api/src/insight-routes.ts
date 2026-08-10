@@ -21,3 +21,21 @@ insightRouter.patch("/:insightId/status", async (request, response) => {
     response.json({ insight });
   } catch (error) { console.error("Insight status update failed", error); response.status(500).json({ error: "INSIGHT_STATUS_UPDATE_FAILED" }); }
 });
+
+insightRouter.patch("/:insightId/assignment", async (request, response) => {
+  const parsed = z.object({ assignedToId: z.union([z.literal("self"), z.string().uuid()]).nullable() }).safeParse(request.body);
+  if (!parsed.success) { response.status(400).json({ error: "INVALID_INSIGHT_ASSIGNMENT", details: parsed.error.flatten() }); return; }
+  try {
+    const websiteId = typeof (request.params as Record<string, string | string[]>).websiteId === "string" ? (request.params as Record<string, string>).websiteId : "";
+    const existing = await prisma.insight.findFirst({ where: { id: request.params.insightId, organizationId: request.organizationId!, websiteId }, select: { id: true, assignedToId: true } });
+    if (!existing) { response.status(404).json({ error: "INSIGHT_NOT_FOUND" }); return; }
+    const assignedToId = parsed.data.assignedToId === "self" ? request.authUserId! : parsed.data.assignedToId;
+    if (assignedToId) {
+      const member = await prisma.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: request.organizationId!, userId: assignedToId } }, select: { userId: true } });
+      if (!member) { response.status(400).json({ error: "INSIGHT_ASSIGNEE_NOT_MEMBER" }); return; }
+    }
+    const insight = await prisma.insight.update({ where: { id: existing.id }, data: { assignedToId }, select: { id: true, assignedToId: true, updatedAt: true } });
+    await writeAuditLog({ organizationId: request.organizationId, userId: request.authUserId, action: "insight.assignment_updated", entityType: "insight", entityId: insight.id, metadata: { previousAssigneeId: existing.assignedToId, nextAssigneeId: assignedToId }, ipAddress: request.ip });
+    response.json({ insight });
+  } catch (error) { console.error("Insight assignment update failed", error); response.status(500).json({ error: "INSIGHT_ASSIGNMENT_UPDATE_FAILED" }); }
+});
