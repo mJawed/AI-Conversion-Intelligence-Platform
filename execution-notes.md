@@ -1852,3 +1852,14 @@ The dashboard build continues to report two existing non-blocking Autoprefixer w
 - Kept packets bounded and free of visitor identifiers or sensitive values.
 - Added unit coverage for evidence packet generation and readiness behavior.
 - Verified 24 API unit tests, API build, dashboard production build, and `git diff --check`.
+
+## AI Recommendation Workflow — Phase 2
+
+**Status:** Complete as a reliable measurement foundation
+
+- Added per-website primary conversion-goal configuration for conversion, form submission, custom event, and CTA click signals.
+- Added goal event and visitor counts to the authenticated tracking-health response.
+- Added goal-health states for healthy, no goal events, and insufficient data.
+- Added warnings when a goal is not configured or configured goal events are not being received.
+- Added Settings → Website goal configuration and Installation → Tracking health goal status display.
+- Added unit coverage for goal configuration and health classification.
