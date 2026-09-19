@@ -36,7 +36,7 @@ export type ClickTarget = { selector: string; label: string; clicks: string; rat
 export type HeatmapPoint = { x: number; y: number; intensity: number; type: "click" | "dead" };
 export type ReplaySession = { id: string; initials: string; page: string; device: string; country: string; duration: string; time: string; events: number; status: "Converted" | "Frustrated" | "Exploring"; summary: string; timeline: SessionEvent[] };
 export type AIInsight = { id: string; source?: string; category: "Forms" | "UX" | "CTA" | "Content" | "Funnels"; severity: "High" | "Medium" | "Low"; status: "Open" | "Saved" | "Dismissed" | "Resolved"; assignedToId?: string | null; title: string; page: string; problem: string; reason: string; evidence: string[]; confidence: string; businessImpact: string; recommendation: string; expectedImprovement: string; created: string };
-export type WebsiteSettings = { name: string; domain: string; trackingId: string; timezone: string; currency: string; industry: string; status: "Connected" | "Needs setup"; eventsThisMonth: string; plan: string };
+export type WebsiteSettings = { name: string; domain: string; trackingId: string; timezone: string; currency: string; industry: string; primaryGoalName?: string; primaryGoalType?: "conversion" | "form_submit" | "custom" | "click"; primaryGoalValue?: string; status: "Connected" | "Needs setup"; eventsThisMonth: string; plan: string };
 
 export type NavigationItem = {
   label: string;
@@ -148,4 +148,4 @@ export const aiInsights: AIInsight[] = [
   { id: "ins-005", category: "Funnels", severity: "Medium", status: "Resolved", title: "Signup step is the largest purchase-funnel bottleneck", page: "/signup", problem: "Visitors who reach signup frequently leave before entering checkout.", reason: "The form requests profile details before visitors have experienced the product value.", evidence: ["63.8% step drop-off", "25.2% signup-to-checkout progression", "Highest drop-off on first-time visitors"], confidence: "91%", businessImpact: "The funnel loses potential purchases before checkout intent can be measured.", recommendation: "Reduce signup to email and password, then collect profile details after purchase.", expectedImprovement: "+18–26% funnel completions", created: "1 week ago" }
 ];
 
-export const websiteSettings: WebsiteSettings = { name: "Acme website", domain: "acme.example.com", trackingId: "trk_x4k39sj92", timezone: "Asia/Kolkata", currency: "USD", industry: "SaaS / Technology", status: "Connected", eventsThisMonth: "31,406", plan: "Growth" };
+export const websiteSettings: WebsiteSettings = { name: "Acme website", domain: "acme.example.com", trackingId: "trk_x4k39sj92", timezone: "Asia/Kolkata", currency: "USD", industry: "SaaS / Technology", primaryGoalName: "Signup", primaryGoalType: "conversion", primaryGoalValue: "", status: "Connected", eventsThisMonth: "31,406", plan: "Growth" };

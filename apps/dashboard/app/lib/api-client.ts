@@ -89,7 +89,7 @@ export function postAnalytics<T>(resource: string, body: unknown) {
 export type AuthUser = { id: string; name: string | null; email: string; avatar: string | null; provider: string | null; emailVerifiedAt: string | null };
 export type AuthTokens = { accessToken: string; refreshToken: string; expiresIn: string };
 export type Organization = { id: string; name: string; slug: string; plan: string; status: string; role: "OWNER" | "ADMIN" | "DEVELOPER" | "MARKETING" | "VIEWER"; createdAt: string; updatedAt: string };
-export type ApiWebsite = { id: string; organizationId: string; name: string; domain: string; trackingId: string; timezone: string; currency: string; industry: string | null; status: "ACTIVE" | "PAUSED" | "ARCHIVED"; installationStatus: "NOT_INSTALLED" | "INSTALLED" | "VERIFIED"; trackingVerifiedAt: string | null; firstEventAt: string | null; lastEventAt: string | null; createdAt: string; updatedAt: string };
+export type ApiWebsite = { id: string; organizationId: string; name: string; domain: string; trackingId: string; timezone: string; currency: string; industry: string | null; primaryGoalName?: string | null; primaryGoalType?: "conversion" | "form_submit" | "custom" | "click"; primaryGoalValue?: string | null; status: "ACTIVE" | "PAUSED" | "ARCHIVED"; installationStatus: "NOT_INSTALLED" | "INSTALLED" | "VERIFIED"; trackingVerifiedAt: string | null; firstEventAt: string | null; lastEventAt: string | null; createdAt: string; updatedAt: string };
 
 export type AuthResponse = { user: AuthUser; tokens: AuthTokens };
 export type PasswordResetResponse = { message: string; resetToken?: string; resetUrl?: string };
@@ -201,7 +201,7 @@ export function createWebsite(accessToken: string, organizationId: string, input
   return authenticatedRequest<{ website: ApiWebsite }>(`/api/v1/organizations/${organizationId}/websites`, accessToken, { method: "POST", body: JSON.stringify(input) });
 }
 
-export function updateWebsite(accessToken: string, organizationId: string, websiteId: string, input: Partial<Pick<ApiWebsite, "name" | "domain" | "timezone" | "currency" | "industry">>) {
+export function updateWebsite(accessToken: string, organizationId: string, websiteId: string, input: Partial<Pick<ApiWebsite, "name" | "domain" | "timezone" | "currency" | "industry" | "primaryGoalName" | "primaryGoalType" | "primaryGoalValue">>) {
   return authenticatedRequest<{ website: ApiWebsite }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}`, accessToken, { method: "PATCH", body: JSON.stringify(input) });
 }
 
@@ -209,7 +209,7 @@ export function getTrackingScript(accessToken: string, organizationId: string, w
   return authenticatedRequest<{ tracking: { trackingId: string; scriptUrl: string; websiteStatus: ApiWebsite["status"]; installationStatus: ApiWebsite["installationStatus"]; verifiedAt: string | null; firstEventAt: string | null; snippet: string } }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/tracking-script`, accessToken);
 }
 
-export type TrackingHealth = { status: "HEALTHY" | "NEEDS_ATTENTION" | "NO_DATA" | "PAUSED" | "ARCHIVED"; message: string; firstEventAt: string | null; lastEventAt: string | null; lastEventAgeSeconds: number | null; sdkVersion: string | null; eventVolume24h: number; uniqueVisitors24h: number; sessions24h: number; eventTypes24h: Array<{ type: string; events: number }>; warnings: string[]; checkedAt: string };
+export type TrackingHealth = { status: "HEALTHY" | "NEEDS_ATTENTION" | "NO_DATA" | "PAUSED" | "ARCHIVED"; message: string; firstEventAt: string | null; lastEventAt: string | null; lastEventAgeSeconds: number | null; sdkVersion: string | null; eventVolume24h: number; uniqueVisitors24h: number; sessions24h: number; eventTypes24h: Array<{ type: string; events: number }>; goal: { configured: boolean; name: string | null; type: string; value: string | null; events24h: number; visitors24h: number; status: "HEALTHY" | "NO_EVENTS" | "INSUFFICIENT_DATA" }; warnings: string[]; checkedAt: string };
 export function getTrackingHealth(accessToken: string, organizationId: string, websiteId: string) {
   return authenticatedRequest<{ health: TrackingHealth }>(`/api/v1/organizations/${organizationId}/websites/${websiteId}/tracking-health`, accessToken);
 }
