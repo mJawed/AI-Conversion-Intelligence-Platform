@@ -4,7 +4,7 @@ import { eventSchema, maskUrl, maskValue, publicEventSummary, toTrackingEventDat
 import { analyticsQuerySchema, liveAnalyticsQuerySchema, normalizeAnalyticsQuery, toLiveEvent, toLiveVisitor, toLiveVisitorActivity } from "../../src/analytics-service";
 import { decryptSecret, encryptSecret } from "../../src/security";
 import { safeWebhookUrl } from "../../src/alert-routes";
-import { getTrackingHealthStatus, getTrackingVerificationStatus, normalizeDomain } from "../../src/website-routes";
+import { getPrimaryGoalHealthStatus, getTrackingHealthStatus, getTrackingVerificationStatus, isPrimaryGoalConfigured, normalizeDomain } from "../../src/website-routes";
 import { WebsiteStatus } from "@prisma/client";
 import { TRACKER_VERSION, trackerScript } from "../../src/tracker";
 import { getPipelineMetrics, publishEvent, toClickHouseRow } from "../../src/event-pipeline";
@@ -18,6 +18,15 @@ import { funnelStepSchema } from "../../src/funnel-routes";
 test("normalizes website domains and rejects paths", () => {
   assert.equal(normalizeDomain("https://WWW.Example.com/"), "www.example.com");
   assert.throws(() => normalizeDomain("https://example.com/pricing"), /INVALID_DOMAIN/);
+});
+
+test("classifies primary goal configuration and health safely", () => {
+  assert.equal(isPrimaryGoalConfigured({ type: "conversion", name: null, value: null }), false);
+  assert.equal(isPrimaryGoalConfigured({ type: "conversion", name: "Signup", value: null }), true);
+  assert.equal(isPrimaryGoalConfigured({ type: "form_submit", name: null, value: "signup" }), true);
+  assert.equal(getPrimaryGoalHealthStatus(0, 8), "INSUFFICIENT_DATA");
+  assert.equal(getPrimaryGoalHealthStatus(0, 20), "NO_EVENTS");
+  assert.equal(getPrimaryGoalHealthStatus(3, 20), "HEALTHY");
 });
 
 test("validates and masks collector events", () => {

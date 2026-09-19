@@ -12,6 +12,9 @@ const websiteCreateSchema = z.object({
   timezone: z.string().trim().min(1).max(80).default("UTC"),
   currency: z.string().trim().length(3).transform((value) => value.toUpperCase()).default("USD"),
   industry: z.string().trim().max(100).nullable().optional(),
+  primaryGoalName: z.string().trim().max(120).nullable().optional(),
+  primaryGoalType: z.enum(["conversion", "form_submit", "custom", "click"]).default("conversion"),
+  primaryGoalValue: z.string().trim().max(160).nullable().optional(),
 });
 
 const websiteUpdateSchema = websiteCreateSchema.partial();
@@ -25,6 +28,9 @@ const websiteSelect = {
   timezone: true,
   currency: true,
   industry: true,
+  primaryGoalName: true,
+  primaryGoalType: true,
+  primaryGoalValue: true,
   status: true,
   installationStatus: true,
   trackingVerifiedAt: true,
@@ -55,6 +61,17 @@ export function getTrackingHealthStatus(website: { status: WebsiteStatus; lastEv
   if (website.status === WebsiteStatus.ARCHIVED) return "ARCHIVED";
   if (!website.lastEventAt) return "NO_DATA";
   return now.getTime() - website.lastEventAt.getTime() <= 30 * 60 * 1000 ? "HEALTHY" : "NEEDS_ATTENTION";
+}
+
+export type PrimaryGoalHealthStatus = "HEALTHY" | "NO_EVENTS" | "INSUFFICIENT_DATA";
+
+export function isPrimaryGoalConfigured(goal: { type: string; name: string | null; value: string | null }) {
+  return Boolean(goal.name || goal.value || goal.type !== "conversion");
+}
+
+export function getPrimaryGoalHealthStatus(goalEvents: number, totalEvents: number): PrimaryGoalHealthStatus {
+  if (goalEvents > 0) return "HEALTHY";
+  return totalEvents >= 20 ? "NO_EVENTS" : "INSUFFICIENT_DATA";
 }
 
 function createTrackingId() {
@@ -199,10 +216,12 @@ websiteRouter.get("/:websiteId/tracking-health", async (request: Request, respon
 
     const now = new Date();
     const since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const [summaryRows, typeRows, latestRows] = await Promise.all([
+    const goalFilter = website.primaryGoalType === "form_submit" ? Prisma.sql`AND event_type = 'form_submit' AND properties->>'formId' = ${website.primaryGoalValue ?? ""}` : website.primaryGoalType === "custom" ? Prisma.sql`AND event_type = 'custom' AND properties->>'eventName' = ${website.primaryGoalValue ?? ""}` : website.primaryGoalType === "click" ? Prisma.sql`AND event_type = 'click' AND (properties->>'id' = ${website.primaryGoalValue ?? ""} OR properties->>'href' = ${website.primaryGoalValue ?? ""} OR properties->>'role' = ${website.primaryGoalValue ?? ""})` : Prisma.sql`AND event_type = 'conversion'`;
+    const [summaryRows, typeRows, latestRows, goalRows] = await Promise.all([
       prisma.$queryRaw<Array<{ events: number; visitors: number; sessions: number; first_event_at: Date | null; last_event_at: Date | null }>>(Prisma.sql`SELECT COUNT(*)::int AS events, COUNT(DISTINCT visitor_id)::int AS visitors, COUNT(DISTINCT session_id)::int AS sessions, MIN(occurred_at) AS first_event_at, MAX(occurred_at) AS last_event_at FROM tracking_events WHERE website_id = ${website.id}::uuid AND occurred_at >= ${since}`),
       prisma.$queryRaw<Array<{ event_type: string; events: number }>>(Prisma.sql`SELECT event_type, COUNT(*)::int AS events FROM tracking_events WHERE website_id = ${website.id}::uuid AND occurred_at >= ${since} GROUP BY event_type ORDER BY events DESC`),
       prisma.$queryRaw<Array<{ sdk_version: string | null }>>(Prisma.sql`SELECT context->>'sdkVersion' AS sdk_version FROM tracking_events WHERE website_id = ${website.id}::uuid ORDER BY occurred_at DESC LIMIT 1`),
+      prisma.$queryRaw<Array<{ events: number; visitors: number }>>(Prisma.sql`SELECT COUNT(*)::int AS events, COUNT(DISTINCT visitor_id)::int AS visitors FROM tracking_events WHERE website_id = ${website.id}::uuid AND occurred_at >= ${since} ${goalFilter}`),
     ]);
 
     const summary = summaryRows[0] ?? { events: 0, visitors: 0, sessions: 0, first_event_at: null, last_event_at: null };
@@ -214,6 +233,10 @@ websiteRouter.get("/:websiteId/tracking-health", async (request: Request, respon
     if (summary.events > 0 && !typeRows.some((row) => row.event_type === "page_view")) warnings.push("No page_view events were received in the last 24 hours.");
     if (summary.events > 0 && !typeRows.some((row) => row.event_type === "heartbeat" || row.event_type === "custom")) warnings.push("No live activity heartbeat events were received in the last 24 hours.");
     if (latestRows[0]?.sdk_version === null || latestRows[0]?.sdk_version === undefined) warnings.push("The latest event came from an older SDK without version metadata.");
+    const goalSummary = goalRows[0] ?? { events: 0, visitors: 0 };
+    const goal = { type: website.primaryGoalType, name: website.primaryGoalName, value: website.primaryGoalValue };
+    if (!isPrimaryGoalConfigured(goal)) warnings.push("Configure a primary conversion goal before trusting AI recommendations.");
+    else if (summary.events >= 20 && Number(goalSummary.events) === 0) warnings.push("No primary goal events were received in the last 24 hours.");
     if (status === "PAUSED") warnings.push("Tracking is paused for this website.");
     if (status === "ARCHIVED") warnings.push("Tracking is unavailable for an archived website.");
 
@@ -230,6 +253,7 @@ websiteRouter.get("/:websiteId/tracking-health", async (request: Request, respon
         uniqueVisitors24h: Number(summary.visitors),
         sessions24h: Number(summary.sessions),
         eventTypes24h: typeRows.map((row) => ({ type: row.event_type, events: Number(row.events) })),
+        goal: { configured: isPrimaryGoalConfigured(goal), name: website.primaryGoalName, type: website.primaryGoalType, value: website.primaryGoalValue, events24h: Number(goalSummary.events), visitors24h: Number(goalSummary.visitors), status: getPrimaryGoalHealthStatus(Number(goalSummary.events), Number(summary.events)) },
         warnings,
         checkedAt: now.toISOString(),
       },

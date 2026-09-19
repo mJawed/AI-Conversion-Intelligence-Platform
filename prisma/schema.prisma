@@ -159,6 +159,9 @@ model Website {
   timezone           String                     @default("UTC")
   currency           String                     @default("USD")
   industry           String?
+  primaryGoalName    String?                    @map("primary_goal_name")
+  primaryGoalType    String                     @default("conversion") @map("primary_goal_type")
+  primaryGoalValue   String?                    @map("primary_goal_value")
   status             WebsiteStatus              @default(ACTIVE)
   installationStatus TrackingInstallationStatus @default(NOT_INSTALLED) @map("installation_status")
   trackingVerifiedAt DateTime?                  @map("tracking_verified_at")
